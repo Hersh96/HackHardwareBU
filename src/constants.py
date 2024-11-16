@@ -34,5 +34,7 @@ AMMO_PICKUP_SCALING = 0.1
 # World constants
 WORLD_CENTER_X = 0
 WORLD_CENTER_Y = 0
-WORLD_RADIUS = 2000
+WORLD_RADIUS = 1000
 SAFE_SPAWN_DISTANCE = 300  # Minimum distance from player to spawn enemies or pickups
+
+
