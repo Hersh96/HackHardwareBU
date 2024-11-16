@@ -3,12 +3,14 @@
 import arcade
 import random
 import math
+import arcade.gui
 
 from constants import *
 from enemy import Enemy
 from player import Player
 from bullet import Bullet
 from ammo_pickup import AmmoPickup
+from audio import AudioManager  # Import AudioManager
 
 class TopDownShooter(arcade.View):
     def __init__(self):
@@ -36,6 +38,16 @@ class TopDownShooter(arcade.View):
         # Wave number
         self.wave_number = 1
 
+        # Audio Manager will be set in setup()
+        self.audio_manager = None
+
+        # Player death handling
+        self.player_dead = False
+        self.death_timer = 0
+
+        # Enemies killed count
+        self.enemies_killed = 0
+
     def setup(self):
         # Set background color
         arcade.set_background_color(arcade.color.AMAZON)
@@ -49,73 +61,13 @@ class TopDownShooter(arcade.View):
         # Spawn the initial wave of enemies
         self.spawn_enemies()
 
-    def spawn_enemies(self):
-        if self.wave_number == 1:
-            num_enemies = 1
-        else:
-            enemy_counts = [1, 2, 3, 4, 5, 6]
-            # Calculate weights based on wave number
-            # Higher counts are more likely in higher waves
-            weights = [count ** (self.wave_number - 2) for count in enemy_counts]
-            # Normalize weights
-            total_weight = sum(weights)
-            weights = [w / total_weight for w in weights]
-            # Select the number of enemies based on the calculated weights
-            num_enemies = random.choices(enemy_counts, weights=weights, k=1)[0]
+        # Ensure the startup sound is stopped and start the game sound
+        if self.audio_manager:
+            self.audio_manager.stop_startup_sound()
+            self.audio_manager.play_game_sound()
 
-        for _ in range(num_enemies):
-            enemy_sprite = Enemy("../Images/enemy.png", ENEMY_SCALING)
-            # Increase enemy health per wave (optional)
-            enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
-
-            # Generate a random position within the circle and outside the safe spawn distance
-            while True:
-                angle = random.uniform(0, 2 * math.pi)
-                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
-                x = WORLD_CENTER_X + r * math.cos(angle)
-                y = WORLD_CENTER_Y + r * math.sin(angle)
-
-                # Check distance from player
-                distance_to_player = math.hypot(
-                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
-                )
-                if distance_to_player >= SAFE_SPAWN_DISTANCE:
-                    break  # Found a valid position
-
-            enemy_sprite.center_x = x
-            enemy_sprite.center_y = y
-            self.enemy_list.append(enemy_sprite)
-
-    def spawn_ammo_pickup(self):
-        # Count ammo pickups in FOV
-        ammo_in_fov = sum(
-            1
-            for ammo in self.ammo_pickup_list
-            if self.is_within_cone(
-                self.player_sprite,
-                ammo.center_x,
-                ammo.center_y,
-                self.player_sprite.angle,
-                CONE_LENGTH,
-                CONE_ANGLE,
-            )
-        )
-
-        if ammo_in_fov < 3:
-            # Generate a random position within the circle
-            while True:
-                angle = random.uniform(0, 2 * math.pi)
-                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
-                x = WORLD_CENTER_X + r * math.cos(angle)
-                y = WORLD_CENTER_Y + r * math.sin(angle)
-                # Check distance from player
-                distance_to_player = math.hypot(
-                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
-                )
-                if distance_to_player >= SAFE_SPAWN_DISTANCE:
-                    break  # Found a valid position
-            ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
-            self.ammo_pickup_list.append(ammo_pickup)
+    def on_show(self):
+        self.window.set_mouse_visible(False)
 
     def on_draw(self):
         arcade.start_render()
@@ -141,6 +93,9 @@ class TopDownShooter(arcade.View):
 
         # Draw cones
         self.draw_cones()
+
+        # Draw arrows pointing towards enemies that haven't fired for 15 seconds
+        self.draw_enemy_arrows()
 
     def draw_hud(self):
         # Player health bar
@@ -216,7 +171,60 @@ class TopDownShooter(arcade.View):
             facing_angle + cone_angle,
         )
 
+    def draw_enemy_arrows(self):
+        for enemy in self.enemy_list:
+            # Check if time since last fire exceeds 15 seconds (assuming 60 FPS)
+            if enemy.time_since_last_fire >= 15 * 60:
+                self.draw_arrow_towards_enemy(enemy)
+
+    def draw_arrow_towards_enemy(self, enemy):
+        # Calculate the direction vector from the player to the enemy
+        dx = enemy.center_x - self.player_sprite.center_x
+        dy = enemy.center_y - self.player_sprite.center_y
+        distance = math.hypot(dx, dy)
+
+        # Normalize the direction vector
+        if distance != 0:
+            dx /= distance
+            dy /= distance
+
+        # Set the arrow length (e.g., 50 pixels)
+        arrow_length = 50
+
+        # Calculate the arrow position starting from the player
+        start_x = self.player_sprite.center_x + dx * 100  # Offset from the player
+        start_y = self.player_sprite.center_y + dy * 100
+
+        end_x = start_x + dx * arrow_length
+        end_y = start_y + dy * arrow_length
+
+        # Calculate the angle of the arrow
+        angle = math.degrees(math.atan2(dy, dx))
+
+        # Draw the arrow
+        arcade.draw_line(start_x, start_y, end_x, end_y, arcade.color.GREEN, 4)
+        # Draw the arrowhead
+        size = 10
+        arcade.draw_triangle_filled(
+            end_x, end_y,
+            end_x - size * math.cos(math.radians(angle + 135)),
+            end_y - size * math.sin(math.radians(angle + 135)),
+            end_x - size * math.cos(math.radians(angle - 135)),
+            end_y - size * math.sin(math.radians(angle - 135)),
+            arcade.color.GREEN
+        )
+
     def on_update(self, delta_time):
+        if self.player_dead:
+            # Increment death timer
+            self.death_timer += delta_time
+            # Assuming dying sound is 3 seconds
+            if self.death_timer >= 3.0:
+                # Switch to game over view
+                game_over_view = GameOverView(self.enemies_killed)
+                self.window.show_view(game_over_view)
+            return  # Skip updating the game
+
         # Update sprites
         self.player_list.update()
         self.enemy_list.update()
@@ -266,6 +274,13 @@ class TopDownShooter(arcade.View):
         # Handle ammo pickups
         self.handle_ammo_pickups()
 
+        # Handle player walking sound
+        if self.audio_manager:
+            if self.player_sprite.change_x != 0 or self.player_sprite.change_y != 0:
+                self.audio_manager.play_player_walk_sound()
+            else:
+                self.audio_manager.stop_player_walk_sound()
+
         # Check for wave completion
         if not self.enemy_list:
             self.wave_number += 1
@@ -279,6 +294,57 @@ class TopDownShooter(arcade.View):
             angle = math.atan2(dy, dx)
             sprite.center_x = WORLD_CENTER_X + WORLD_RADIUS * math.cos(angle)
             sprite.center_y = WORLD_CENTER_Y + WORLD_RADIUS * math.sin(angle)
+
+    def spawn_enemies(self):
+        if self.wave_number == 1:
+            num_enemies = 1
+        else:
+            enemy_counts = [1, 2, 3, 4, 5, 6]
+            # Calculate weights based on wave number
+            weights = [count ** (self.wave_number - 2) for count in enemy_counts]
+            total_weight = sum(weights)
+            weights = [w / total_weight for w in weights]
+            # Select the number of enemies based on the calculated weights
+            num_enemies = random.choices(enemy_counts, weights=weights, k=1)[0]
+
+        for _ in range(num_enemies):
+            enemy_sprite = Enemy("../Images/enemy.png", ENEMY_SCALING)
+            # Increase enemy health per wave (optional)
+            enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
+
+            # Generate a random position within the circle and outside the safe spawn distance
+            while True:
+                angle = random.uniform(0, 2 * math.pi)
+                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
+                x = WORLD_CENTER_X + r * math.cos(angle)
+                y = WORLD_CENTER_Y + r * math.sin(angle)
+
+                # Check distance from player
+                distance_to_player = math.hypot(
+                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
+                )
+                if distance_to_player >= SAFE_SPAWN_DISTANCE:
+                    break  # Found a valid position
+
+            enemy_sprite.center_x = x
+            enemy_sprite.center_y = y
+            self.enemy_list.append(enemy_sprite)
+
+    def spawn_ammo_pickup(self):
+        # Generate a random position within the circle
+        while True:
+            angle = random.uniform(0, 2 * math.pi)
+            r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
+            x = WORLD_CENTER_X + r * math.cos(angle)
+            y = WORLD_CENTER_Y + r * math.sin(angle)
+            # Check distance from player
+            distance_to_player = math.hypot(
+                x - self.player_sprite.center_x, y - self.player_sprite.center_y
+            )
+            if distance_to_player >= SAFE_SPAWN_DISTANCE:
+                break  # Found a valid position
+        ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
+        self.ammo_pickup_list.append(ammo_pickup)
 
     def handle_bullets(self):
         for bullet in self.bullet_list:
@@ -300,6 +366,14 @@ class TopDownShooter(arcade.View):
                         # Enemy dies
                         self.spawn_ammo_pickup_at(enemy.center_x, enemy.center_y)
                         enemy.remove_from_sprite_lists()
+                        self.enemies_killed += 1  # Increment enemies killed
+                        # Play enemy die sound
+                        if self.audio_manager:
+                            self.audio_manager.play_enemy_die_sound()
+                    else:
+                        # Play player hit enemy sound
+                        if self.audio_manager:
+                            self.audio_manager.play_player_kill_enemy_sound()
                     break  # Bullet is gone, no need to check further
             elif bullet.owner == 'enemy':
                 # Check collision with player
@@ -307,8 +381,15 @@ class TopDownShooter(arcade.View):
                     self.player_sprite.health -= ENEMY_BULLET_DAMAGE
                     bullet.remove_from_sprite_lists()
                     if self.player_sprite.health <= 0:
-                        print("Game Over")
-                        arcade.close_window()
+                        # Player dies
+                        if self.audio_manager:
+                            self.audio_manager.stop_game_sound()
+                            self.audio_manager.stop_player_walk_sound()
+                            self.audio_manager.stop_enemy_near_player_sound()
+                            self.audio_manager.play_player_die_sound()
+                        self.player_dead = True
+                        self.death_timer = 0
+                        self.player_sprite.remove_from_sprite_lists()
                     break  # Bullet is gone, no need to check further
 
     def spawn_ammo_pickup_at(self, x, y):
@@ -316,6 +397,7 @@ class TopDownShooter(arcade.View):
         self.ammo_pickup_list.append(ammo_pickup)
 
     def handle_enemies(self):
+        enemy_near_player = False
         for enemy in self.enemy_list:
             # Keep enemy within world circle
             self.keep_sprite_within_world(enemy)
@@ -325,6 +407,7 @@ class TopDownShooter(arcade.View):
             )
 
             if distance_to_player <= ENEMY_DETECTION_RANGE:
+                enemy_near_player = True  # At least one enemy is near
                 # Enemy detects player, follows the player
                 dx = self.player_sprite.center_x - enemy.center_x
                 dy = self.player_sprite.center_y - enemy.center_y
@@ -362,10 +445,16 @@ class TopDownShooter(arcade.View):
                             self.bullet_list.append(bullet)
                             enemy.shoot_timer = ENEMY_SHOOT_DELAY
 
-                # Decrease shoot timer
+                            # Reset the time since last fire
+                            enemy.time_since_last_fire = 0
+                    else:
+                        # Enemy cannot fire yet
+                        enemy.shoot_timer -= 1
+                        # Increment time since last fire
+                        enemy.time_since_last_fire += 1
+                # Increment time since last fire if enemy didn't shoot
                 if enemy.shoot_timer > 0:
-                    enemy.shoot_timer -= 1
-
+                    enemy.time_since_last_fire += 1
             else:
                 # Enemy is too far from player, move randomly
                 # Change direction randomly
@@ -376,8 +465,18 @@ class TopDownShooter(arcade.View):
                 if enemy.change_x != 0 or enemy.change_y != 0:
                     enemy.angle = math.degrees(math.atan2(enemy.change_y, enemy.change_x))
 
+                # Increment time since last fire
+                enemy.time_since_last_fire += 1
+
             # Apply movement
             enemy.update()
+
+        # Play or stop the enemy near player sound
+        if self.audio_manager:
+            if enemy_near_player:
+                self.audio_manager.play_enemy_near_player_sound()
+            else:
+                self.audio_manager.stop_enemy_near_player_sound()
 
     def handle_player_shooting(self):
         # Reduce shoot timer
@@ -452,6 +551,77 @@ class TopDownShooter(arcade.View):
 
     def on_resize(self, width, height):
         self.camera.resize(int(width), int(height))
+
+class GameOverView(arcade.View):
+    def __init__(self, enemies_killed):
+        super().__init__()
+        self.enemies_killed = enemies_killed
+
+        # UI manager for buttons
+        self.ui_manager = arcade.gui.UIManager()
+        self.ui_manager.enable()
+
+        # Create a vertical BoxGroup to align buttons
+        self.v_box = arcade.gui.UIBoxLayout()
+
+        # Create the replay button
+        replay_button = arcade.gui.UIFlatButton(text="Replay", width=200)
+        self.v_box.add(replay_button.with_space_around(bottom=20))
+        replay_button.on_click = self.on_click_replay
+
+        # Create the quit button
+        quit_button = arcade.gui.UIFlatButton(text="Quit", width=200)
+        self.v_box.add(quit_button)
+        quit_button.on_click = self.on_click_quit
+
+        # Center the buttons
+        self.ui_manager.add(
+            arcade.gui.UIAnchorWidget(
+                anchor_x="center_x", anchor_y="center_y", child=self.v_box
+            )
+        )
+
+    def on_show(self):
+        arcade.set_background_color(arcade.color.BLACK)
+        self.window.set_mouse_visible(True)
+
+    def on_draw(self):
+        arcade.start_render()
+        self.ui_manager.draw()
+        # Draw the "Game Over" text
+        arcade.draw_text(
+            "Game Over",
+            self.window.width // 2,
+            self.window.height - 100,
+            arcade.color.WHITE,
+            font_size=30,
+            anchor_x="center",
+        )
+        # Draw the number of enemies killed
+        arcade.draw_text(
+            f"Enemies Killed: {self.enemies_killed}",
+            self.window.width // 2,
+            self.window.height - 150,
+            arcade.color.WHITE,
+            font_size=20,
+            anchor_x="center",
+        )
+
+    def on_click_replay(self, event):
+        # Restart the game
+        game_view = TopDownShooter()
+        game_view.setup()
+        # Create a new AudioManager instance
+        game_view.audio_manager = AudioManager()
+        game_view.audio_manager.play_game_sound()
+        self.window.show_view(game_view)
+        self.ui_manager.disable()
+
+    def on_click_quit(self, event):
+        arcade.close_window()
+
+    def on_hide_view(self):
+        self.ui_manager.disable()
 
 def run_game():
     # The game is started from startup.py, so run_game() is not needed here.
