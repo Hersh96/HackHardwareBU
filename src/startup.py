@@ -60,6 +60,8 @@ class StartupView(arcade.View):
 
     def on_hide_view(self):
         self.ui_manager.disable()
+    
+    
 
 def run_main():
     window = arcade.Window(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, resizable=True)

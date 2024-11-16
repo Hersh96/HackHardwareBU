@@ -199,6 +199,7 @@ class TopDownShooter(arcade.View):
         self.bullet_list.update()
         self.ammo_pickup_list.update()
 
+        # Update camera to follow player, constrained within the world circle
         cam_x = self.player_sprite.center_x - self.window.width / 2
         cam_y = self.player_sprite.center_y - self.window.height / 2
 
@@ -214,12 +215,17 @@ class TopDownShooter(arcade.View):
 
         self.camera.move_to((cam_x, cam_y), 0.1)
 
+        # Update player angle to always face the current mouse position
         dx = self.mouse_x - self.player_sprite.center_x
         dy = self.mouse_y - self.player_sprite.center_y
-        self.player_sprite.angle = math.degrees(math.atan2(dy, dx))
 
+        if dx != 0 or dy != 0:
+            self.player_sprite.angle = math.degrees(math.atan2(dy, dx))
+
+        # Keep player within world circle
         self.keep_sprite_within_world(self.player_sprite)
 
+        # Spawn ammo pickups
         self.ammo_spawn_timer += 1
         if self.ammo_spawn_timer >= 120:
             self.spawn_ammo_pickup()
@@ -340,6 +346,7 @@ class TopDownShooter(arcade.View):
     def on_mouse_motion(self, x, y, dx, dy):
         self.mouse_x = x + self.camera.position[0]
         self.mouse_y = y + self.camera.position[1]
+
 
     def on_resize(self, width, height):
         self.camera.resize(int(width), int(height))
