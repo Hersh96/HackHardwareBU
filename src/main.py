@@ -2,6 +2,7 @@ import arcade
 import random
 import math
 import arcade.gui
+import json
 
 
 from constants import *
@@ -10,6 +11,7 @@ from player import Player
 from bullet import Bullet
 from ammo_pickup import AmmoPickup
 from audio import AudioManager  # Import AudioManager
+from wall import Wall
 
 class TopDownShooter(arcade.View):
     def __init__(self):
@@ -20,6 +22,8 @@ class TopDownShooter(arcade.View):
         self.enemy_list = arcade.SpriteList()
         self.bullet_list = arcade.SpriteList()
         self.ammo_pickup_list = arcade.SpriteList()
+        self.wall_list = arcade.SpriteList()
+
 
         # Initialize player
         self.player_sprite = None
@@ -64,6 +68,8 @@ class TopDownShooter(arcade.View):
 
         # Spawn the initial wave of enemies
         self.spawn_enemies()
+
+        self.load_map("assets/map1.json")
 
         if self.audio_manager:
             self.audio_manager.stop_startup_sound()
@@ -224,6 +230,8 @@ class TopDownShooter(arcade.View):
         self.enemy_list.draw()
         self.bullet_list.draw()
         self.ammo_pickup_list.draw()
+        self.wall_list.draw()
+
 
         # Draw cones
         self.draw_cones()
@@ -234,6 +242,26 @@ class TopDownShooter(arcade.View):
          # Draw arrows pointing towards enemies that haven't fired for 15 seconds
         self.draw_enemy_arrows()
 
+    def load_map(self, map_file):
+        # Clear existing walls
+        self.wall_list = arcade.SpriteList()
+
+        # Load the map data
+        with open(map_file, "r") as f:
+            map_data = json.load(f)
+
+        for wall_data in map_data["walls"]:
+            x, y = wall_data["x"], wall_data["y"]
+            width, height = wall_data["width"], wall_data["height"]
+
+            # Check if the wall is within the circular world boundary
+            dx = x - WORLD_CENTER_X
+            dy = y - WORLD_CENTER_Y
+            if math.hypot(dx, dy) + max(width, height) / 2 <= WORLD_RADIUS:
+                wall = Wall(width, height, arcade.color.GRAY, x, y)
+                self.wall_list.append(wall)
+
+    
     def draw_hud(self):
         arcade.draw_rectangle_filled(
             self.camera.position[0] + 100,
@@ -277,6 +305,10 @@ class TopDownShooter(arcade.View):
         self.enemy_list.update()
         self.bullet_list.update()
         self.ammo_pickup_list.update()
+
+        for wall in arcade.check_for_collision_with_list(self.player_sprite, self.wall_list):
+            self.player_sprite.change_x = 0
+            self.player_sprite.change_y = 0
 
         # Update camera to follow player, constrained within the world circle
         cam_x = self.player_sprite.center_x - self.window.width / 2
@@ -608,6 +640,7 @@ class GameOverView(arcade.View):
             font_size=20,
             anchor_x="center",
         )
+        
 
     def on_click_replay(self, event):
         # Restart the game
