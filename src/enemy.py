@@ -1,7 +1,4 @@
-# enemy.py
-
 import arcade
-import math
 from constants import ENEMY_HEALTH
 
 class Enemy(arcade.Sprite):
@@ -12,4 +9,4 @@ class Enemy(arcade.Sprite):
 
     def update(self):
         super().update()
-        # Additional enemy-specific updates can be added here
+        # Movement and other behaviors are handled in main.py

@@ -10,9 +10,9 @@ from player import Player
 from bullet import Bullet
 from ammo_pickup import AmmoPickup
 
-class TopDownShooter(arcade.Window):
+class TopDownShooter(arcade.View):
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, resizable=True)
+        super().__init__()
 
         # Sprite lists
         self.player_list = arcade.SpriteList()
@@ -28,30 +28,107 @@ class TopDownShooter(arcade.Window):
         self.mouse_y = 0
 
         # Camera
-        self.camera = arcade.Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.camera = arcade.Camera(self.window.width, self.window.height)
 
         # Ammo spawn timer
         self.ammo_spawn_timer = 0
+
+        # Wave number
+        self.wave_number = 1
 
     def setup(self):
         # Set background color
         arcade.set_background_color(arcade.color.AMAZON)
 
-        # Create the player
-        self.player_sprite = Player("Images/top_view.png", PLAYER_SCALING)
-        self.player_sprite.center_x = SCREEN_WIDTH / 2
-        self.player_sprite.center_y = SCREEN_HEIGHT / 2
+        # Create the player at the center of the world
+        self.player_sprite = Player("../Images/top_View.jpg", PLAYER_SCALING)
+        self.player_sprite.center_x = WORLD_CENTER_X
+        self.player_sprite.center_y = WORLD_CENTER_Y
         self.player_list.append(self.player_sprite)
 
-        # Create an enemy
-        enemy_sprite = Enemy("Images/enemy.png", ENEMY_SCALING)
-        enemy_sprite.center_x = random.randint(0, SCREEN_WIDTH)
-        enemy_sprite.center_y = random.randint(0, SCREEN_HEIGHT)
-        self.enemy_list.append(enemy_sprite)
+        # Spawn the initial wave of enemies
+        self.spawn_enemies()
+
+    def spawn_enemies(self):
+        if self.wave_number == 1:
+            num_enemies = 1
+        else:
+            enemy_counts = [1, 2, 3, 4, 5, 6]
+            # Calculate weights based on wave number
+            # Higher counts are more likely in higher waves
+            weights = [count ** (self.wave_number - 2) for count in enemy_counts]
+            # Normalize weights
+            total_weight = sum(weights)
+            weights = [w / total_weight for w in weights]
+            # Select the number of enemies based on the calculated weights
+            num_enemies = random.choices(enemy_counts, weights=weights, k=1)[0]
+
+        for _ in range(num_enemies):
+            enemy_sprite = Enemy("../Images/enemy.png", ENEMY_SCALING)
+            # Increase enemy health per wave (optional)
+            enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
+
+            # Generate a random position within the circle and outside the safe spawn distance
+            while True:
+                angle = random.uniform(0, 2 * math.pi)
+                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
+                x = WORLD_CENTER_X + r * math.cos(angle)
+                y = WORLD_CENTER_Y + r * math.sin(angle)
+
+                # Check distance from player
+                distance_to_player = math.hypot(
+                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
+                )
+                if distance_to_player >= SAFE_SPAWN_DISTANCE:
+                    break  # Found a valid position
+
+            enemy_sprite.center_x = x
+            enemy_sprite.center_y = y
+            self.enemy_list.append(enemy_sprite)
+
+    def spawn_ammo_pickup(self):
+        # Count ammo pickups in FOV
+        ammo_in_fov = sum(
+            1
+            for ammo in self.ammo_pickup_list
+            if self.is_within_cone(
+                self.player_sprite,
+                ammo.center_x,
+                ammo.center_y,
+                self.player_sprite.angle,
+                CONE_LENGTH,
+                CONE_ANGLE,
+            )
+        )
+
+        if ammo_in_fov < 3:
+            # Generate a random position within the circle
+            while True:
+                angle = random.uniform(0, 2 * math.pi)
+                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
+                x = WORLD_CENTER_X + r * math.cos(angle)
+                y = WORLD_CENTER_Y + r * math.sin(angle)
+                # Check distance from player
+                distance_to_player = math.hypot(
+                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
+                )
+                if distance_to_player >= SAFE_SPAWN_DISTANCE:
+                    break  # Found a valid position
+            ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
+            self.ammo_pickup_list.append(ammo_pickup)
 
     def on_draw(self):
         arcade.start_render()
         self.camera.use()
+
+        # Draw the world boundary circle
+        arcade.draw_circle_outline(
+            WORLD_CENTER_X,
+            WORLD_CENTER_Y,
+            WORLD_RADIUS,
+            arcade.color.WHITE,
+            2
+        )
 
         # Draw sprites
         self.player_list.draw()
@@ -69,7 +146,7 @@ class TopDownShooter(arcade.Window):
         # Player health bar
         arcade.draw_rectangle_filled(
             self.camera.position[0] + 100,
-            self.camera.position[1] + SCREEN_HEIGHT - 20,
+            self.camera.position[1] + self.window.height - 20,
             self.player_sprite.health,
             10,
             arcade.color.RED,
@@ -80,9 +157,20 @@ class TopDownShooter(arcade.Window):
         arcade.draw_text(
             ammo_text,
             self.camera.position[0] + 10,
-            self.camera.position[1] + SCREEN_HEIGHT - 40,
+            self.camera.position[1] + self.window.height - 40,
             arcade.color.WHITE,
             14,
+        )
+
+        # Wave number display
+        wave_text = f"Wave: {self.wave_number}"
+        arcade.draw_text(
+            wave_text,
+            self.camera.position[0] + self.window.width - 100,
+            self.camera.position[1] + self.window.height - 40,
+            arcade.color.WHITE,
+            14,
+            anchor_x="center"
         )
 
     def draw_cones(self):
@@ -90,8 +178,9 @@ class TopDownShooter(arcade.Window):
         self.draw_cone(
             self.player_sprite.center_x,
             self.player_sprite.center_y,
-            self.mouse_x,
-            self.mouse_y,
+            self.player_sprite.angle,
+            CONE_LENGTH,
+            CONE_ANGLE,
             arcade.color.YELLOW,
         )
 
@@ -100,47 +189,32 @@ class TopDownShooter(arcade.Window):
             self.draw_cone(
                 enemy.center_x,
                 enemy.center_y,
-                self.player_sprite.center_x,
-                self.player_sprite.center_y,
+                enemy.angle,
+                ENEMY_SHOOT_RANGE,
+                CONE_ANGLE,
                 arcade.color.RED,
             )
 
-    def draw_cone(self, start_x, start_y, target_x, target_y, color):
-        angle_radians = math.atan2(target_y - start_y, target_x - start_x)
+    def draw_cone(self, start_x, start_y, facing_angle, cone_length, cone_angle, color):
+        left_angle = math.radians(facing_angle + cone_angle)
+        right_angle = math.radians(facing_angle - cone_angle)
 
-        left_angle = angle_radians + math.radians(CONE_ANGLE)
-        right_angle = angle_radians - math.radians(CONE_ANGLE)
-
-        end_x1 = start_x + math.cos(left_angle) * CONE_LENGTH
-        end_y1 = start_y + math.sin(left_angle) * CONE_LENGTH
-        end_x2 = start_x + math.cos(right_angle) * CONE_LENGTH
-        end_y2 = start_y + math.sin(right_angle) * CONE_LENGTH
+        end_x1 = start_x + math.cos(left_angle) * cone_length
+        end_y1 = start_y + math.sin(left_angle) * cone_length
+        end_x2 = start_x + math.cos(right_angle) * cone_length
+        end_y2 = start_y + math.sin(right_angle) * cone_length
 
         arcade.draw_line(start_x, start_y, end_x1, end_y1, color, 2)
         arcade.draw_line(start_x, start_y, end_x2, end_y2, color, 2)
         arcade.draw_arc_filled(
             start_x,
             start_y,
-            CONE_LENGTH * 2,
-            CONE_LENGTH * 2,
+            cone_length * 2,
+            cone_length * 2,
             color + (50,),
-            math.degrees(right_angle),
-            math.degrees(left_angle),
+            facing_angle - cone_angle,
+            facing_angle + cone_angle,
         )
-
-    def spawn_ammo_pickup(self):
-        # Count ammo pickups in FOV
-        ammo_in_fov = sum(
-            1 for ammo in self.ammo_pickup_list if self.is_within_cone(
-                self.player_sprite, ammo.center_x, ammo.center_y, self.mouse_x, self.mouse_y
-            )
-        )
-
-        if ammo_in_fov < 3:
-            x = random.randint(0, SCREEN_WIDTH)
-            y = random.randint(0, SCREEN_HEIGHT)
-            ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
-            self.ammo_pickup_list.append(ammo_pickup)
 
     def on_update(self, delta_time):
         # Update sprites
@@ -149,19 +223,30 @@ class TopDownShooter(arcade.Window):
         self.bullet_list.update()
         self.ammo_pickup_list.update()
 
-        # Update camera
-        self.camera.move_to(
-            (
-                self.player_sprite.center_x - SCREEN_WIDTH / 2,
-                self.player_sprite.center_y - SCREEN_HEIGHT / 2,
-            ),
-            0.1,
-        )
+        # Update camera to follow player, constrained within the world circle
+        cam_x = self.player_sprite.center_x - self.window.width / 2
+        cam_y = self.player_sprite.center_y - self.window.height / 2
+
+        # Calculate camera's distance from the world center
+        dx = cam_x + self.window.width / 2 - WORLD_CENTER_X
+        dy = cam_y + self.window.height / 2 - WORLD_CENTER_Y
+        distance = math.hypot(dx, dy)
+        max_distance = WORLD_RADIUS - max(self.window.width, self.window.height) / 2
+
+        if distance > max_distance:
+            angle = math.atan2(dy, dx)
+            cam_x = WORLD_CENTER_X + max_distance * math.cos(angle) - self.window.width / 2
+            cam_y = WORLD_CENTER_Y + max_distance * math.sin(angle) - self.window.height / 2
+
+        self.camera.move_to((cam_x, cam_y), 0.1)
 
         # Update player angle
         dx = self.mouse_x - self.player_sprite.center_x
         dy = self.mouse_y - self.player_sprite.center_y
         self.player_sprite.angle = math.degrees(math.atan2(dy, dx))
+
+        # Keep player within world circle
+        self.keep_sprite_within_world(self.player_sprite)
 
         # Spawn ammo pickups
         self.ammo_spawn_timer += 1
@@ -181,15 +266,27 @@ class TopDownShooter(arcade.Window):
         # Handle ammo pickups
         self.handle_ammo_pickups()
 
+        # Check for wave completion
+        if not self.enemy_list:
+            self.wave_number += 1
+            self.spawn_enemies()
+
+    def keep_sprite_within_world(self, sprite):
+        dx = sprite.center_x - WORLD_CENTER_X
+        dy = sprite.center_y - WORLD_CENTER_Y
+        distance = math.hypot(dx, dy)
+        if distance > WORLD_RADIUS:
+            angle = math.atan2(dy, dx)
+            sprite.center_x = WORLD_CENTER_X + WORLD_RADIUS * math.cos(angle)
+            sprite.center_y = WORLD_CENTER_Y + WORLD_RADIUS * math.sin(angle)
+
     def handle_bullets(self):
         for bullet in self.bullet_list:
-            # Remove bullets off-screen
-            if (
-                bullet.center_x < 0
-                or bullet.center_x > SCREEN_WIDTH
-                or bullet.center_y < 0
-                or bullet.center_y > SCREEN_HEIGHT
-            ):
+            # Remove bullets outside the world
+            dx = bullet.center_x - WORLD_CENTER_X
+            dy = bullet.center_y - WORLD_CENTER_Y
+            distance = math.hypot(dx, dy)
+            if distance > WORLD_RADIUS:
                 bullet.remove_from_sprite_lists()
                 continue
 
@@ -220,52 +317,67 @@ class TopDownShooter(arcade.Window):
 
     def handle_enemies(self):
         for enemy in self.enemy_list:
-            distance_to_player = arcade.get_distance_between_sprites(enemy, self.player_sprite)
+            # Keep enemy within world circle
+            self.keep_sprite_within_world(enemy)
 
-            if distance_to_player > ENEMY_SHOOT_RANGE:
-                # Move towards player
-                enemy.change_x = ENEMY_MOVEMENT_SPEED * math.cos(math.radians(enemy.angle))
-                enemy.change_y = ENEMY_MOVEMENT_SPEED * math.sin(math.radians(enemy.angle))
-            else:
-                # Stop movement
-                enemy.change_x = 0
-                enemy.change_y = 0
-
-                # Shoot at player
-                if enemy.shoot_timer <= 0:
-                    if self.is_within_cone(
-                        enemy,
-                        self.player_sprite.center_x,
-                        self.player_sprite.center_y,
-                        self.player_sprite.center_x,
-                        self.player_sprite.center_y,
-                        CONE_LENGTH=ENEMY_SHOOT_RANGE,
-                    ):
-                        bullet = Bullet(5, arcade.color.RED, 'enemy', ENEMY_BULLET_SPEED)
-                        bullet.center_x = enemy.center_x
-                        bullet.center_y = enemy.center_y
-                        bullet.angle = math.degrees(
-                            math.atan2(
-                                self.player_sprite.center_y - enemy.center_y,
-                                self.player_sprite.center_x - enemy.center_x,
-                            )
-                        )
-                        bullet.change_x = math.cos(math.radians(bullet.angle)) * bullet.speed
-                        bullet.change_y = math.sin(math.radians(bullet.angle)) * bullet.speed
-                        self.bullet_list.append(bullet)
-                        enemy.shoot_timer = ENEMY_SHOOT_DELAY
-
-            # Decrease shoot timer
-            if enemy.shoot_timer > 0:
-                enemy.shoot_timer -= 1
-
-            # Update enemy angle towards player
-            enemy.angle = math.degrees(
-                math.atan2(
-                    self.player_sprite.center_y - enemy.center_y,
-                    self.player_sprite.center_x - enemy.center_x,
-                )
+            distance_to_player = arcade.get_distance_between_sprites(
+                enemy, self.player_sprite
             )
+
+            if distance_to_player <= ENEMY_DETECTION_RANGE:
+                # Enemy detects player, follows the player
+                dx = self.player_sprite.center_x - enemy.center_x
+                dy = self.player_sprite.center_y - enemy.center_y
+                enemy.angle = math.degrees(math.atan2(dy, dx))
+
+                if distance_to_player > ENEMY_SHOOT_RANGE:
+                    # Move towards player
+                    enemy.change_x = ENEMY_MOVEMENT_SPEED * math.cos(
+                        math.radians(enemy.angle)
+                    )
+                    enemy.change_y = ENEMY_MOVEMENT_SPEED * math.sin(
+                        math.radians(enemy.angle)
+                    )
+                else:
+                    # Stop movement
+                    enemy.change_x = 0
+                    enemy.change_y = 0
+
+                    # Shoot at player
+                    if enemy.shoot_timer <= 0:
+                        if self.is_within_cone(
+                            enemy,
+                            self.player_sprite.center_x,
+                            self.player_sprite.center_y,
+                            enemy.angle,
+                            ENEMY_SHOOT_RANGE,
+                            CONE_ANGLE,
+                        ):
+                            bullet = Bullet(5, arcade.color.RED, 'enemy', ENEMY_BULLET_SPEED)
+                            bullet.center_x = enemy.center_x
+                            bullet.center_y = enemy.center_y
+                            bullet.angle = enemy.angle
+                            bullet.change_x = math.cos(math.radians(bullet.angle)) * bullet.speed
+                            bullet.change_y = math.sin(math.radians(bullet.angle)) * bullet.speed
+                            self.bullet_list.append(bullet)
+                            enemy.shoot_timer = ENEMY_SHOOT_DELAY
+
+                # Decrease shoot timer
+                if enemy.shoot_timer > 0:
+                    enemy.shoot_timer -= 1
+
+            else:
+                # Enemy is too far from player, move randomly
+                # Change direction randomly
+                if random.random() < 0.02:
+                    enemy.change_x = random.uniform(-ENEMY_MOVEMENT_SPEED, ENEMY_MOVEMENT_SPEED)
+                    enemy.change_y = random.uniform(-ENEMY_MOVEMENT_SPEED, ENEMY_MOVEMENT_SPEED)
+                # Update enemy's angle based on movement direction
+                if enemy.change_x != 0 or enemy.change_y != 0:
+                    enemy.angle = math.degrees(math.atan2(enemy.change_y, enemy.change_x))
+
+            # Apply movement
+            enemy.update()
 
     def handle_player_shooting(self):
         # Reduce shoot timer
@@ -275,7 +387,12 @@ class TopDownShooter(arcade.Window):
         # Check for shooting
         for enemy in self.enemy_list:
             if self.is_within_cone(
-                self.player_sprite, enemy.center_x, enemy.center_y, self.mouse_x, self.mouse_y
+                self.player_sprite,
+                enemy.center_x,
+                enemy.center_y,
+                self.player_sprite.angle,
+                CONE_LENGTH,
+                CONE_ANGLE,
             ):
                 if self.player_sprite.ammo > 0 and self.player_sprite.shoot_timer <= 0:
                     bullet = Bullet(5, arcade.color.YELLOW, 'player', 10)
@@ -288,9 +405,6 @@ class TopDownShooter(arcade.Window):
                     self.player_sprite.shoot_timer = PLAYER_FIRE_RATE
                     self.player_sprite.ammo -= 1
                     break  # Only shoot one bullet per update
-                else:
-                    # No ammo or still in cooldown
-                    pass
 
     def handle_ammo_pickups(self):
         # Collect ammo pickups
@@ -303,18 +417,14 @@ class TopDownShooter(arcade.Window):
             # Optionally, play a sound effect here
 
     def is_within_cone(
-        self, sprite, target_x, target_y, direction_x, direction_y, CONE_LENGTH=CONE_LENGTH
+        self, sprite, target_x, target_y, facing_angle, cone_length, cone_angle
     ):
         dx = target_x - sprite.center_x
         dy = target_y - sprite.center_y
-        distance = math.sqrt(dx**2 + dy**2)
+        distance = math.hypot(dx, dy)
         angle_to_target = math.degrees(math.atan2(dy, dx))
-        angle_to_direction = math.degrees(
-            math.atan2(direction_y - sprite.center_y, direction_x - sprite.center_x)
-        )
-        angle_difference = abs((angle_to_target - angle_to_direction + 180) % 360 - 180)
-
-        return distance < CONE_LENGTH and angle_difference < CONE_ANGLE
+        angle_difference = abs((angle_to_target - facing_angle + 180) % 360 - 180)
+        return distance < cone_length and angle_difference < cone_angle
 
     def on_key_press(self, key, modifiers):
         if key in [arcade.key.UP, arcade.key.W]:
@@ -340,10 +450,12 @@ class TopDownShooter(arcade.Window):
         self.mouse_x = x + self.camera.position[0]
         self.mouse_y = y + self.camera.position[1]
 
-def main():
-    window = TopDownShooter()
-    window.setup()
-    arcade.run()
+    def on_resize(self, width, height):
+        self.camera.resize(int(width), int(height))
+
+def run_game():
+    # The game is started from startup.py, so run_game() is not needed here.
+    pass
 
 if __name__ == "__main__":
-    main()
+    run_game()

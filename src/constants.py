@@ -18,6 +18,7 @@ ENEMY_SCALING = 0.1
 ENEMY_MOVEMENT_SPEED = 1
 ENEMY_HEALTH = 50
 ENEMY_SHOOT_RANGE = 200
+ENEMY_DETECTION_RANGE = 400  # Detection range for enemies
 ENEMY_SHOOT_DELAY = 30  # Frames between shots
 ENEMY_BULLET_DAMAGE = 10
 ENEMY_BULLET_SPEED = 5
@@ -29,3 +30,9 @@ CONE_LENGTH = 300
 # Ammo pickup constants
 AMMO_PICKUP_AMOUNT = 10
 AMMO_PICKUP_SCALING = 0.1
+
+# World constants
+WORLD_CENTER_X = 0
+WORLD_CENTER_Y = 0
+WORLD_RADIUS = 2000
+SAFE_SPAWN_DISTANCE = 300  # Minimum distance from player to spawn enemies or pickups

@@ -1,5 +1,3 @@
-# ammo_pickup.py
-
 import arcade
 
 class AmmoPickup(arcade.SpriteCircle):

@@ -1,5 +1,3 @@
-# bullet.py
-
 import arcade
 
 class Bullet(arcade.SpriteCircle):

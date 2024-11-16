@@ -1,5 +1,3 @@
-# player.py
-
 import arcade
 from constants import PLAYER_HEALTH, INITIAL_AMMO
 
@@ -12,4 +10,4 @@ class Player(arcade.Sprite):
 
     def update(self):
         super().update()
-        # Additional player-specific updates can be added here
+        # Movement and other behaviors are handled in main.py
