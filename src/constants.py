@@ -1,0 +1,31 @@
+# constants.py
+
+# Screen constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SCREEN_TITLE = "Top-Down Shooter Game"
+
+# Player constants
+PLAYER_SCALING = 0.1
+PLAYER_MOVEMENT_SPEED = 2
+PLAYER_HEALTH = 100
+PLAYER_FIRE_RATE = 15  # Frames between shots
+PLAYER_BULLET_DAMAGE = 10
+INITIAL_AMMO = 30
+
+# Enemy constants
+ENEMY_SCALING = 0.1
+ENEMY_MOVEMENT_SPEED = 1
+ENEMY_HEALTH = 50
+ENEMY_SHOOT_RANGE = 200
+ENEMY_SHOOT_DELAY = 30  # Frames between shots
+ENEMY_BULLET_DAMAGE = 10
+ENEMY_BULLET_SPEED = 5
+
+# Cone constants
+CONE_ANGLE = 30  # Half-angle in degrees
+CONE_LENGTH = 300
+
+# Ammo pickup constants
+AMMO_PICKUP_AMOUNT = 10
+AMMO_PICKUP_SCALING = 0.1
