@@ -1,0 +1,333 @@
+import arcade
+import random
+import math
+
+# Constants for the screen
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SCREEN_TITLE = "Top-Down Shooter Game"
+
+# Constants for the player
+PLAYER_SCALING = 0.1
+PLAYER_MOVEMENT_SPEED = 2
+PLAYER_HEALTH = 100
+PLAYER_FIRE_RATE = 15  # Frames between shots for the player
+PLAYER_BULLET_DAMAGE = 10
+
+# Constants for the enemy
+ENEMY_SCALING = 0.1
+ENEMY_MOVEMENT_SPEED = 1
+ENEMY_HEALTH = 50
+ENEMY_SHOOT_RANGE = 200
+ENEMY_SHOOT_DELAY = 30  # Frames between shots
+ENEMY_BULLET_DAMAGE = 10
+ENEMY_BULLET_SPEED = 5
+
+# Constants for the cone
+CONE_ANGLE = 30  # Half-angle of the cone in degrees
+CONE_LENGTH = 300
+
+class TopDownShooter(arcade.Window):
+    def __init__(self):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE, resizable=True)
+
+        # Player sprite and sprite list
+        self.player_sprite = None
+        self.player_list = None
+        self.player_health = PLAYER_HEALTH
+        self.player_shoot_timer = 0
+
+        # Enemy sprite list
+        self.enemy_list = None
+
+        # Bullet sprite list
+        self.bullet_list = None
+
+        # Set the background color
+        arcade.set_background_color(arcade.color.AMAZON)
+
+        # Mouse position
+        self.mouse_x = 0
+        self.mouse_y = 0
+
+        # Shooting cooldown for enemies
+        self.enemy_shoot_timer = {}
+
+        # Camera to follow the player
+        self.camera = arcade.Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    def setup(self):
+        # Create the player sprite and set up the game
+        self.player_list = arcade.SpriteList()
+        self.player_sprite = arcade.Sprite("Images/top_View.jpg", PLAYER_SCALING)
+        self.player_sprite.center_x = SCREEN_WIDTH / 2
+        self.player_sprite.center_y = SCREEN_HEIGHT / 2
+        self.player_list.append(self.player_sprite)
+
+        # Create the enemy sprite list and add an enemy
+        self.enemy_list = arcade.SpriteList()
+        enemy_sprite = arcade.Sprite("Images/enemy.png", ENEMY_SCALING)
+        enemy_sprite.center_x = random.randint(0, SCREEN_WIDTH)
+        enemy_sprite.center_y = random.randint(0, SCREEN_HEIGHT)
+        enemy_sprite.health = ENEMY_HEALTH
+        self.enemy_list.append(enemy_sprite)
+        self.enemy_shoot_timer[enemy_sprite] = 0
+
+        # Create the bullet sprite list
+        self.bullet_list = arcade.SpriteList()
+
+    def on_draw(self):
+        # Clear the screen
+        arcade.start_render()
+
+        # Activate the camera
+        self.camera.use()
+
+        # Draw player, enemies, and bullets
+        self.player_list.draw()
+        self.enemy_list.draw()
+        self.bullet_list.draw()
+
+        # Draw the player's health bar
+        arcade.draw_rectangle_filled(
+            self.camera.position[0] + 100,
+            self.camera.position[1] + SCREEN_HEIGHT - 20,
+            self.player_health,
+            10,
+            arcade.color.RED,
+        )
+
+        # Draw enemy health bars
+        for enemy in self.enemy_list:
+            arcade.draw_rectangle_filled(
+                enemy.center_x, enemy.center_y + 20, enemy.health, 5, arcade.color.RED
+            )
+
+        # Draw the cone for the player
+        self.draw_cone(
+            self.player_sprite.center_x,
+            self.player_sprite.center_y,
+            self.mouse_x,
+            self.mouse_y,
+            arcade.color.YELLOW,
+        )
+
+        # Draw cones for enemies
+        for enemy in self.enemy_list:
+            target_x = self.player_sprite.center_x
+            target_y = self.player_sprite.center_y
+            self.draw_cone(
+                enemy.center_x, enemy.center_y, target_x, target_y, arcade.color.RED
+            )
+
+    def draw_cone(self, start_x, start_y, target_x, target_y, color):
+        angle_radians = math.atan2(target_y - start_y, target_x - start_x)
+
+        # Calculate the endpoints of the cone lines
+        left_angle = angle_radians + math.radians(CONE_ANGLE)
+        right_angle = angle_radians - math.radians(CONE_ANGLE)
+
+        end_x1 = start_x + math.cos(left_angle) * CONE_LENGTH
+        end_y1 = start_y + math.sin(left_angle) * CONE_LENGTH
+        end_x2 = start_x + math.cos(right_angle) * CONE_LENGTH
+        end_y2 = start_y + math.sin(right_angle) * CONE_LENGTH
+
+        arcade.draw_line(start_x, start_y, end_x1, end_y1, color, 2)
+        arcade.draw_line(start_x, start_y, end_x2, end_y2, color, 2)
+        arcade.draw_arc_filled(
+            start_x,
+            start_y,
+            CONE_LENGTH * 2,
+            CONE_LENGTH * 2,
+            color + (50,),
+            math.degrees(right_angle),
+            math.degrees(left_angle),
+        )
+
+    def on_update(self, delta_time):
+        # Update the player's position
+        self.player_list.update()
+
+        # Update the camera to follow the player
+        self.camera.move_to(
+            (
+                self.player_sprite.center_x - SCREEN_WIDTH / 2,
+                self.player_sprite.center_y - SCREEN_HEIGHT / 2,
+            ),
+            0.1,
+        )
+
+        # Calculate angle to rotate the player sprite
+        dx = self.mouse_x - self.player_sprite.center_x
+        dy = self.mouse_y - self.player_sprite.center_y
+        angle = math.degrees(math.atan2(dy, dx))
+        self.player_sprite.angle = angle
+
+        # Update bullets
+        self.bullet_list.update()
+
+        # Check for bullet collisions with enemies
+        for bullet in self.bullet_list:
+            if bullet.owner == 'player':
+                hit_list = arcade.check_for_collision_with_list(bullet, self.enemy_list)
+                for enemy in hit_list:
+                    if bullet in self.bullet_list:
+                        enemy.health -= PLAYER_BULLET_DAMAGE
+                        bullet.remove_from_sprite_lists()
+                        if enemy.health <= 0:
+                            if enemy in self.enemy_list:
+                                self.enemy_list.remove(enemy)
+                                del self.enemy_shoot_timer[enemy]
+                            continue
+
+            # Remove bullets if they go off-screen
+            if (
+                bullet.center_x < 0
+                or bullet.center_x > SCREEN_WIDTH
+                or bullet.center_y < 0
+                or bullet.center_y > SCREEN_HEIGHT
+            ):
+                bullet.remove_from_sprite_lists()
+
+        # Check for bullet collisions with the player
+        for bullet in self.bullet_list:
+            if bullet.owner == 'enemy' and arcade.check_for_collision(
+                bullet, self.player_sprite
+            ):
+                self.player_health -= ENEMY_BULLET_DAMAGE
+                bullet.remove_from_sprite_lists()
+                if self.player_health <= 0:
+                    print("Game Over")
+                    arcade.close_window()
+
+        # Update the enemy's position to follow the player
+        for enemy in self.enemy_list:
+            distance_to_player = math.sqrt(
+                (enemy.center_x - self.player_sprite.center_x) ** 2
+                + (enemy.center_y - self.player_sprite.center_y) ** 2
+            )
+
+            if distance_to_player > ENEMY_SHOOT_RANGE:
+                # Move enemy towards the player if out of range
+                if enemy.center_x < self.player_sprite.center_x:
+                    enemy.change_x = ENEMY_MOVEMENT_SPEED
+                elif enemy.center_x > self.player_sprite.center_x:
+                    enemy.change_x = -ENEMY_MOVEMENT_SPEED
+
+                if enemy.center_y < self.player_sprite.center_y:
+                    enemy.change_y = ENEMY_MOVEMENT_SPEED
+                elif enemy.center_y > self.player_sprite.center_y:
+                    enemy.change_y = -ENEMY_MOVEMENT_SPEED
+            else:
+                # Stop the enemy if in range to shoot
+                enemy.change_x = 0
+                enemy.change_y = 0
+
+                # Shoot the player if in range and within the cone
+                if self.enemy_shoot_timer[enemy] == 0:
+                    if self.is_within_cone(
+                        enemy,
+                        self.player_sprite.center_x,
+                        self.player_sprite.center_y,
+                        self.player_sprite.center_x,
+                        self.player_sprite.center_y,
+                        CONE_LENGTH=ENEMY_SHOOT_RANGE,
+                    ):
+                        # Enemy shoots a bullet towards the player
+                        bullet = arcade.SpriteCircle(5, arcade.color.RED)
+                        bullet.center_x = enemy.center_x
+                        bullet.center_y = enemy.center_y
+                        bullet.angle = math.degrees(
+                            math.atan2(
+                                self.player_sprite.center_y - enemy.center_y,
+                                self.player_sprite.center_x - enemy.center_x,
+                            )
+                        )
+                        bullet.change_x = (
+                            math.cos(math.radians(bullet.angle)) * ENEMY_BULLET_SPEED
+                        )
+                        bullet.change_y = (
+                            math.sin(math.radians(bullet.angle)) * ENEMY_BULLET_SPEED
+                        )
+                        bullet.owner = 'enemy'  # Add this line
+                        self.bullet_list.append(bullet)
+
+                        # Set the shoot timer to delay the next shot
+                        self.enemy_shoot_timer[enemy] = ENEMY_SHOOT_DELAY
+
+            # Update the enemy sprite
+            enemy.update()
+
+            # Reduce the enemy shoot timer
+            if self.enemy_shoot_timer[enemy] > 0:
+                self.enemy_shoot_timer[enemy] -= 1
+
+            # Check if enemy is in the player's cone
+            if self.is_within_cone(
+                self.player_sprite, enemy.center_x, enemy.center_y, self.mouse_x, self.mouse_y
+            ):
+                # Player can shoot the enemy
+                if self.player_shoot_timer == 0:
+                    bullet = arcade.SpriteCircle(5, arcade.color.YELLOW)
+                    bullet.center_x = self.player_sprite.center_x
+                    bullet.center_y = self.player_sprite.center_y
+                    bullet.angle = self.player_sprite.angle
+                    bullet.change_x = math.cos(math.radians(bullet.angle)) * 10
+                    bullet.change_y = math.sin(math.radians(bullet.angle)) * 10
+                    bullet.owner = 'player'  # Add this line
+                    self.bullet_list.append(bullet)
+                    self.player_shoot_timer = PLAYER_FIRE_RATE
+
+        # Reduce the player shoot timer
+        if self.player_shoot_timer > 0:
+            self.player_shoot_timer -= 1
+
+    def is_within_cone(
+        self, sprite, target_x, target_y, direction_x, direction_y, CONE_LENGTH=CONE_LENGTH
+    ):
+        dx = target_x - sprite.center_x
+        dy = target_y - sprite.center_y
+        distance = math.sqrt(dx ** 2 + dy ** 2)
+        angle_to_target = math.degrees(math.atan2(dy, dx))
+        angle_to_direction = math.degrees(
+            math.atan2(direction_y - sprite.center_y, direction_x - sprite.center_x)
+        )
+        angle_difference = abs((angle_to_target - angle_to_direction + 180) % 360 - 180)
+
+        return distance < CONE_LENGTH and angle_difference < CONE_ANGLE
+
+    def on_key_press(self, key, modifiers):
+        # Handle player movement with key press
+        if key == arcade.key.UP or key == arcade.key.W:
+            self.player_sprite.change_y = PLAYER_MOVEMENT_SPEED
+        elif key == arcade.key.DOWN or key == arcade.key.S:
+            self.player_sprite.change_y = -PLAYER_MOVEMENT_SPEED
+        elif key == arcade.key.LEFT or key == arcade.key.A:
+            self.player_sprite.change_x = -PLAYER_MOVEMENT_SPEED
+        elif key == arcade.key.RIGHT or key == arcade.key.D:
+            self.player_sprite.change_x = PLAYER_MOVEMENT_SPEED
+
+    def on_key_release(self, key, modifiers):
+        # Stop player movement when key is released
+        if key == arcade.key.UP or key == arcade.key.W:
+            self.player_sprite.change_y = 0
+        elif key == arcade.key.DOWN or key == arcade.key.S:
+            self.player_sprite.change_y = 0
+        elif key == arcade.key.LEFT or key == arcade.key.A:
+            self.player_sprite.change_x = 0
+        elif key == arcade.key.RIGHT or key == arcade.key.D:
+            self.player_sprite.change_x = 0
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        # Convert the mouse position to world coordinates
+        self.mouse_x = x + self.camera.position[0]
+        self.mouse_y = y + self.camera.position[1]
+
+def main():
+    # Main function to run the game
+    window = TopDownShooter()
+    window.setup()
+    arcade.run()
+
+if __name__ == "__main__":
+    main()
