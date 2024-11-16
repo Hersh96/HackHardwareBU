@@ -13,6 +13,7 @@ class Enemy(arcade.Sprite):
         self.health = ENEMY_HEALTH
         self.shoot_timer = 0
         self.frame_count = 0  # Counter to control animation speed
+        self.time_since_last_fire = 0
 
     def update(self):
         super().update()

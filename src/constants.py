@@ -6,7 +6,7 @@ SCREEN_HEIGHT = 600
 SCREEN_TITLE = "Top-Down Shooter Game"
 
 # Player constants
-PLAYER_SCALING = 0.1
+PLAYER_SCALING = 0.3
 PLAYER_MOVEMENT_SPEED = 2
 PLAYER_HEALTH = 100
 PLAYER_FIRE_RATE = 15  # Frames between shots

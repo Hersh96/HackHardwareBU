@@ -3,6 +3,7 @@
 import arcade
 import arcade.gui
 import main  # Import the main game module
+from audio import AudioManager  # Import AudioManager
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -34,6 +35,10 @@ class StartupView(arcade.View):
             )
         )
 
+                # Initialize AudioManager and play startup sound
+        self.audio_manager = AudioManager()
+        self.audio_manager.play_startup_sound()
+
     def on_show(self):
         arcade.set_background_color(arcade.color.BLACK)
 
@@ -50,14 +55,18 @@ class StartupView(arcade.View):
         )
 
     def on_click_play(self, event):
+        # Stop the startup sound
+        self.audio_manager.stop_startup_sound()
+
         # Start the main game
         game_view = main.TopDownShooter()
         game_view.setup()
+        game_view.audio_manager = self.audio_manager  # Pass the AudioManager instance
         self.window.show_view(game_view)
-
+        self.ui_manager.disable()
     def on_click_quit(self, event):
         arcade.close_window()
-
+    
     def on_hide_view(self):
         self.ui_manager.disable()
 
