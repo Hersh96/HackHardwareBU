@@ -35,7 +35,7 @@ class StartupView(arcade.View):
             )
         )
 
-                # Initialize AudioManager and play startup sound
+        # Initialize AudioManager and play startup sound
         self.audio_manager = AudioManager()
         self.audio_manager.play_startup_sound()
 
@@ -60,13 +60,14 @@ class StartupView(arcade.View):
 
         # Start the main game
         game_view = main.TopDownShooter()
+        game_view.audio_manager = self.audio_manager  # Assign before setup()
         game_view.setup()
-        game_view.audio_manager = self.audio_manager  # Pass the AudioManager instance
         self.window.show_view(game_view)
         self.ui_manager.disable()
+
     def on_click_quit(self, event):
         arcade.close_window()
-    
+
     def on_hide_view(self):
         self.ui_manager.disable()
 

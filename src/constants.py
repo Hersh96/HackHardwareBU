@@ -37,4 +37,14 @@ WORLD_CENTER_Y = 0
 WORLD_RADIUS = 1000
 SAFE_SPAWN_DISTANCE = 300  # Minimum distance from player to spawn enemies or pickups
 
+# Boss constants
+BOSS_SCALING = 0.3
+BOSS_HEALTH = ENEMY_HEALTH * 10
+BOSS_MOVEMENT_SPEED = 1.5
+BOSS_SHOOT_RANGE = 300
+BOSS_SHOOT_DELAY = 20  # Boss fires more frequently
+BOSS_BULLET_DAMAGE = ENEMY_BULLET_DAMAGE * 2
+BOSS_BULLET_SPEED = 7
+HEALTH_PICKUP_AMOUNT = 50  # Amount of health restored by a health pickup
+
 

@@ -1,3 +1,4 @@
+#wall.py
 import arcade
 
 class Wall(arcade.SpriteSolidColor):
