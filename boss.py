@@ -31,21 +31,36 @@ class Boss(arcade.Sprite):
     def handle_collision(self, wall_list):
         """
         Handle collision with walls and prevent enemies from walking through them.
+        Uses incremental movement to ensure precise collision detection.
         """
-        # Check for collisions with walls
-        walls_hit = arcade.check_for_collision_with_list(self, wall_list)
-        # for wall in walls_hit:
-        #     # Push the enemy out of the wall
-        #     if self.change_x > 0:  # Moving right
-        #         self.right = wall.left
-        #     elif self.change_x < 0:  # Moving left
-        #         self.left = wall.right
-        #     if self.change_y > 0:  # Moving up
-        #         self.top = wall.bottom
-        #     elif self.change_y < 0:  # Moving down
-        #         self.bottom = wall.top
+        # Define the number of steps for the movement (higher = more precise)
+        steps = 5
+        step_x = self.change_x / steps
+        step_y = self.change_y / steps
 
-        # Reset movement to prevent clipping
-        if walls_hit:
-            self.change_x = 0
-            self.change_y = 0
+        for _ in range(steps):
+            # Move incrementally along the x-axis
+            self.center_x += step_x
+            walls_hit = arcade.check_for_collision_with_list(self, wall_list)
+            if walls_hit:
+                # Resolve collisions on the x-axis
+                for wall in walls_hit:
+                    if self.change_x > 0:  # Moving right
+                        self.right = wall.left
+                    elif self.change_x < 0:  # Moving left
+                        self.left = wall.right
+                self.change_x = 0  # Stop horizontal movement
+                break  # Stop further movement along this axis
+
+            # Move incrementally along the y-axis
+            self.center_y += step_y
+            walls_hit = arcade.check_for_collision_with_list(self, wall_list)
+            if walls_hit:
+                # Resolve collisions on the y-axis
+                for wall in walls_hit:
+                    if self.change_y > 0:  # Moving up
+                        self.top = wall.bottom
+                    elif self.change_y < 0:  # Moving down
+                        self.bottom = wall.top
+                self.change_y = 0  # Stop vertical movement
+                break  # Stop further movement along this axis

@@ -228,10 +228,10 @@ class TopDownShooter(arcade.View):
         self.boss_active = False
 
         # Enable enemy ray casting
-        self.enable_enemy_ray_casting = True
+        self.enable_enemy_ray_casting = False
 
     def setup(self):
-        # Set background color
+        # Set background colordddd
         arcade.set_background_color((60, 60, 60, 255))
 
         # Create the player at the center of the world
@@ -250,6 +250,7 @@ class TopDownShooter(arcade.View):
 
         self.load_map("resources/assets/map1.json")
 
+    
     def pause_game(self):
         """Pause the game and show the pause menu."""
         pause_view = PauseMenuView(self)
