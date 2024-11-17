@@ -415,6 +415,7 @@ class TopDownShooter(arcade.View):
                     self.player_sprite.health -= ENEMY_BULLET_DAMAGE
                     bullet.remove_from_sprite_lists()
                     if self.player_sprite.health <= 0:
+                        self.player_sprite.texture = self.player_sprite.dead_texture
                         if self.audio_manager:
                             self.audio_manager.stop_game_sound()
                             self.audio_manager.stop_player_walk_sound()
@@ -422,7 +423,7 @@ class TopDownShooter(arcade.View):
                             self.audio_manager.play_player_die_sound()
                         self.player_dead = True
                         self.death_timer = 0
-                        self.player_sprite.remove_from_sprite_lists()
+                        # self.player_sprite.remove_from_sprite_lists()
                         break
 
     def handle_player_shooting(self):
@@ -585,6 +586,7 @@ class TopDownShooter(arcade.View):
                 self.audio_manager.play_enemy_near_player_sound()
             else:
                 self.audio_manager.stop_enemy_near_player_sound()
+    
 
 class GameOverView(arcade.View):
     def __init__(self, enemies_killed):

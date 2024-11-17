@@ -1,6 +1,24 @@
 {
     "walls": [
-        {"x": 100, "y": 100, "width": 50, "height": 50},
-        {"x": 200, "y": 300, "width": 30, "height": 60}
+        {"x": 530, "y": 250, "width": 45, "height": 88},
+        {"x": 315, "y": 472, "width": 76, "height": 69},
+        {"x": 679, "y": 282, "width": 43, "height": 32},
+        {"x": 270, "y": 306, "width": 89, "height": 22},
+        {"x": 505, "y": 696, "width": 49, "height": 99},
+        {"x": 346, "y": 538, "width": 51, "height": 25},
+        {"x": 179, "y": 467, "width": 67, "height": 54},
+        {"x": 312, "y": 376, "width": 57, "height": 90},
+        {"x": 398, "y": 210, "width": 99, "height": 37},
+        {"x": 519, "y": 340, "width": 91, "height": 76},
+        {"x": 670, "y": 467, "width": 66, "height": 27},
+        {"x": 143, "y": 654, "width": 47, "height": 81},
+        {"x": 209, "y": 211, "width": 94, "height": 50},
+        {"x": 335, "y": 645, "width": 38, "height": 67},
+        {"x": 622, "y": 323, "width": 85, "height": 31},
+        {"x": 423, "y": 573, "width": 60, "height": 43},
+        {"x": 389, "y": 192, "width": 99, "height": 65},
+        {"x": 278, "y": 597, "width": 49, "height": 44},
+        {"x": 501, "y": 289, "width": 32, "height": 62},
+        {"x": 471, "y": 439, "width": 70, "height": 40}
     ]
 }
