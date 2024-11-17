@@ -7,7 +7,7 @@ from audio import AudioManager  # Import AudioManager
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-SCREEN_TITLE = "Top-Down Shooter Game - Startup"
+SCREEN_TITLE = "Terrier Terror"
 
 class StartupView(arcade.View):
     def __init__(self):
@@ -64,6 +64,7 @@ class StartupView(arcade.View):
         game_view.audio_manager = self.audio_manager  # Pass the AudioManager instance
         self.window.show_view(game_view)
         self.ui_manager.disable()
+        
     def on_click_quit(self, event):
         arcade.close_window()
     

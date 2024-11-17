@@ -32,28 +32,21 @@ class TopDownShooter(arcade.View):
         self.mouse_x = 0
         self.mouse_y = 0
 
-        # Camera
+        self.player_sprite = None
+        self.mouse_x = 0
+        self.mouse_y = 0
         self.camera = arcade.Camera(self.window.width, self.window.height)
-
-        # Ammo spawn timer
         self.ammo_spawn_timer = 0
-
-        # Wave number
         self.wave_number = 1
-
-        # Audio Manager will be set in setup()
         self.audio_manager = None
-
-        # Player death handling
         self.player_dead = False
         self.death_timer = 0
-
-        # Enemies killed count
         self.enemies_killed = 0
+        self.enable_enemy_ray_casting = True
 
     def setup(self):
         # Set background color
-        arcade.set_background_color(arcade.color.BLEU_DE_FRANCE)
+        arcade.set_background_color((60, 60, 60, 255))
 
         # Create the player at the center of the world
         self.player_sprite = Player(
@@ -71,10 +64,13 @@ class TopDownShooter(arcade.View):
 
         self.load_map("assets/map1.json")
 
+        # Set the flag to enable or disable enemy ray casting
+        self.enable_enemy_ray_casting = True  # Change to False to disable ray casting
+
         if self.audio_manager:
             self.audio_manager.stop_startup_sound()
             self.audio_manager.play_game_sound()
-    
+
     def on_show(self):
         self.window.set_mouse_visible(True)
 
@@ -134,19 +130,19 @@ class TopDownShooter(arcade.View):
             self.player_sprite.angle,
             CONE_LENGTH,
             CONE_ANGLE,
-            (255, 255, 0, 100)  # Yellow with transparency
+            (180, 180, 180, 100)  # Yellow with transparency
         )
 
-        # Draw light cones for enemies (if needed)
-        for enemy in self.enemy_list:
-            self.draw_light_cone(
-                enemy.center_x,
-                enemy.center_y,
-                enemy.angle,
-                ENEMY_SHOOT_RANGE,
-                CONE_ANGLE,
-                (255, 0, 0, 100)  # Red with transparency
-            )
+        # # Draw light cones for enemies (if needed)
+        # for enemy in self.enemy_list:
+        #     self.draw_light_cone(
+        #         enemy.center_x,
+        #         enemy.center_y,
+        #         enemy.angle,
+        #         ENEMY_SHOOT_RANGE,
+        #         CONE_ANGLE,
+        #         (255, 0, 0, 100)  # Red with transparency
+        #     )
 
     
     def draw_light_cone(self, start_x, start_y, facing_angle, cone_length, cone_angle, color):
@@ -243,19 +239,20 @@ class TopDownShooter(arcade.View):
             self.player_sprite.angle,
             CONE_LENGTH,
             CONE_ANGLE,
-            (255, 255, 0, 50)  # Light yellow with transparency
+            (180, 180, 180, 100)  # Light yellow with transparency
         )
 
-        # Draw flashlight effects for all enemies
-        for enemy in self.enemy_list:
-            self.draw_light_cone(
-                enemy.center_x,
-                enemy.center_y,
-                enemy.angle,
-                ENEMY_SHOOT_RANGE,
-                CONE_ANGLE,
-                (255, 0, 0, 50)  # Light red with transparency
-            )
+        # Conditionally draw flashlight effects for all enemies
+        if self.enable_enemy_ray_casting:
+            for enemy in self.enemy_list:
+                self.draw_light_cone(
+                    enemy.center_x,
+                    enemy.center_y,
+                    enemy.angle,
+                    ENEMY_SHOOT_RANGE,
+                    CONE_ANGLE,
+                    (0, 0, 0, 0)  # Light red with transparency
+                )
 
         # Draw visible objects in cones
         self.draw_visible_objects()
@@ -265,47 +262,6 @@ class TopDownShooter(arcade.View):
         self.enemy_list.draw()
         self.bullet_list.draw()
         self.ammo_pickup_list.draw()
-        self.draw_hud()
-        self.draw_enemy_arrows()
-
-        arcade.start_render()
-        self.camera.use()
-
-            # Draw the dark overlay first
-        self.draw_dark_overlay()
-
-            # Draw walls and environment (default layer)
-        self.wall_list.draw()
-        self.ammo_pickup_list.draw()
-
-        # Draw the flashlight effect for the player
-        self.draw_flashlight_cone(
-                self.player_sprite.center_x,
-                self.player_sprite.center_y,
-                self.player_sprite.angle,
-                CONE_LENGTH,
-                CONE_ANGLE,
-                (255, 255, 0, 50)  # Light yellow with high transparency
-            )
-
-            # Draw flashlight effects for enemies
-        for enemy in self.enemy_list:
-            self.draw_flashlight_cone(
-                enemy.center_x,
-                enemy.center_y,
-                enemy.angle,
-                ENEMY_SHOOT_RANGE,
-                CONE_ANGLE,
-                (255, 0, 0, 50)  # Light red with high transparency
-                )
-
-            # Draw visible objects in cones on top of the overlay
-        self.draw_visible_objects()
-
-            # Draw walls and HUD elements on the top-most layer
-        self.wall_list.draw()
-        self.player_list.draw()
-        self.bullet_list.draw()
         self.draw_hud()
         self.draw_enemy_arrows()
 
@@ -409,7 +365,7 @@ class TopDownShooter(arcade.View):
             self.camera.position[0] + screen_width,
             self.camera.position[1] + screen_height,
             self.camera.position[1],
-            (0, 0, 0, 220)  # Dark overlay with alpha for transparency
+            (0, 0, 0, 150)  # Dark overlay with alpha for transparency
         )
 
 
@@ -582,13 +538,28 @@ class TopDownShooter(arcade.View):
                         self.spawn_ammo_pickup_at(enemy.center_x, enemy.center_y)
                         self.enemies_killed += 1
                         enemy.remove_from_sprite_lists()
+                        if self.audio_manager:
+                            self.audio_manager.play_enemy_die_sound()
+                    else:
+                        # Play player hit enemy sound
+                        if self.audio_manager:
+                            self.audio_manager.play_player_kill_enemy_sound()
                     break
             elif bullet.owner == 'enemy':
                 if arcade.check_for_collision(bullet, self.player_sprite):
                     self.player_sprite.health -= ENEMY_BULLET_DAMAGE
                     bullet.remove_from_sprite_lists()
                     if self.player_sprite.health <= 0:
-                        self.handle_player_death()
+                        self.player_sprite.texture = self.player_sprite.dead_texture
+                        if self.audio_manager:
+                            self.audio_manager.stop_game_sound()
+                            self.audio_manager.stop_player_walk_sound()
+                            self.audio_manager.stop_enemy_near_player_sound()
+                            self.audio_manager.play_player_die_sound()
+                        self.player_dead = True
+                        self.death_timer = 0
+                        # self.player_sprite.remove_from_sprite_lists()
+                        # self.handle_player_death()
                     break
 
     def has_line_of_sight(self, shooter, target, wall_list):
@@ -751,6 +722,11 @@ class TopDownShooter(arcade.View):
                     else:
                         # Enemy cannot fire yet
                         enemy.shoot_timer -= 1
+                        # Increment time since last fire
+                        enemy.time_since_last_fire += 1
+                # Increment time since last fire if enemy didn't shoot
+                if enemy.shoot_timer > 0:
+                    enemy.time_since_last_fire += 1
             else:
                 # Enemy is too far from player, move randomly
                 if random.random() < 0.02:
@@ -758,6 +734,8 @@ class TopDownShooter(arcade.View):
                     enemy.change_y = random.uniform(-ENEMY_MOVEMENT_SPEED, ENEMY_MOVEMENT_SPEED)
                 if enemy.change_x != 0 or enemy.change_y != 0:
                     enemy.angle = math.degrees(math.atan2(enemy.change_y, enemy.change_x))
+                
+                enemy.time_since_last_fire += 1
 
             # Apply movement
             enemy.update()

@@ -12,8 +12,9 @@ class AudioManager:
         self.enemy_near_player_sound = arcade.load_sound("sounds/enemy_near_player.mp3")
         self.enemy_die_sound = arcade.load_sound("sounds/enemy_die.mp3")
         self.player_die_sound = arcade.load_sound("sounds/player_die.mp3")
-
-        # Keep track of sound players for looping sounds
+        self.boss_sound = arcade.load_sound("sounds/boss_sound.mp3")
+        
+        self.boss_sound_player = None
         self.startup_sound_player = None
         self.game_sound_player = None
         self.player_walk_sound_player = None
