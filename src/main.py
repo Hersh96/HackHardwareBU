@@ -15,6 +15,168 @@ from audio import AudioManager
 from wall import Wall
 
 
+class MainMenuView(arcade.View):
+    def __init__(self, audio_manager=None):
+        super().__init__()
+        self.ui_manager = arcade.gui.UIManager()
+        self.ui_manager.enable()
+
+        # Create a vertical BoxGroup to align buttons
+        self.v_box = arcade.gui.UIBoxLayout()
+
+        # Create the play button
+        play_button = arcade.gui.UIFlatButton(text="Play", width=200)
+        self.v_box.add(play_button.with_space_around(bottom=20))
+        play_button.on_click = self.on_click_play
+
+        # Create the quit button
+        quit_button = arcade.gui.UIFlatButton(text="Quit", width=200)
+        self.v_box.add(quit_button)
+        quit_button.on_click = self.on_click_quit
+
+        # Center the buttons
+        self.ui_manager.add(
+            arcade.gui.UIAnchorWidget(
+                anchor_x="center_x", anchor_y="center_y", child=self.v_box
+            )
+        )
+
+        # Use the existing AudioManager if provided
+        self.audio_manager = audio_manager or AudioManager()
+
+    def on_show(self):
+        # Stop all other sounds
+        if self.audio_manager:
+            self.audio_manager.stop_game_sound()
+            self.audio_manager.stop_boss_sound()
+            self.audio_manager.stop_player_walk_sound()
+            self.audio_manager.stop_enemy_near_player_sound()
+
+            # Play startup music
+            self.audio_manager.play_startup_sound()
+
+        arcade.set_background_color(arcade.color.BLACK)
+        self.window.set_mouse_visible(True)
+
+    def on_draw(self):
+        arcade.start_render()
+        self.ui_manager.draw()
+
+        # Draw the title
+        arcade.draw_text(
+            "Terrier Terror",
+            self.window.width // 2,
+            self.window.height - 100,
+            arcade.color.WHITE,
+            font_size=30,
+            anchor_x="center",
+            font_name="Kenney Pixel",  # Optional font
+        )
+
+    def on_click_play(self, event):
+        """Start the main game."""
+        # Stop startup music and transition to the game
+        if self.audio_manager:
+            self.audio_manager.stop_startup_sound()
+
+        game_view = TopDownShooter()
+        game_view.audio_manager = self.audio_manager
+        game_view.setup()
+        self.window.show_view(game_view)
+        self.ui_manager.disable()
+
+    def on_click_quit(self, event):
+        """Quit the application."""
+        # Stop all sounds when quitting
+        if self.audio_manager:
+            self.audio_manager.stop_all_sounds()
+        arcade.close_window()
+
+    def on_hide_view(self):
+        self.ui_manager.disable()
+
+class PauseMenuView(arcade.View):
+    def __init__(self, main_game_view):
+        super().__init__()
+        self.main_game_view = main_game_view  # Reference to the main game view
+        self.ui_manager = arcade.gui.UIManager()
+        self.ui_manager.enable()
+
+        # Create a vertical BoxGroup to align buttons
+        self.v_box = arcade.gui.UIBoxLayout()
+
+        # Create the resume button
+        resume_button = arcade.gui.UIFlatButton(text="Resume", width=200)
+        self.v_box.add(resume_button.with_space_around(bottom=20))
+        resume_button.on_click = self.on_click_resume
+
+        # Create the restart button
+        restart_button = arcade.gui.UIFlatButton(text="Restart", width=200)
+        self.v_box.add(restart_button.with_space_around(bottom=20))
+        restart_button.on_click = self.on_click_restart
+
+        # Create the quit button
+        quit_button = arcade.gui.UIFlatButton(text="Quit", width=200)
+        self.v_box.add(quit_button)
+        quit_button.on_click = self.on_click_quit
+
+        # Center the buttons
+        self.ui_manager.add(
+            arcade.gui.UIAnchorWidget(
+                anchor_x="center_x", anchor_y="center_y", child=self.v_box
+            )
+        )
+
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE)
+
+    def on_draw(self):
+        arcade.start_render()
+        self.ui_manager.draw()
+
+        # Draw the "Paused" text
+        arcade.draw_text(
+            "Paused",
+            self.window.width // 2,
+            self.window.height - 100,
+            arcade.color.WHITE,
+            font_size=30,
+            anchor_x="center",
+        )
+
+    def on_click_resume(self, event):
+        """Resume the game."""
+        self.ui_manager.disable()
+        self.window.show_view(self.main_game_view)
+
+    def on_click_restart(self, event):
+        """Restart the game from Wave 1."""
+        self.ui_manager.disable()
+        new_game_view = TopDownShooter()
+        new_game_view.audio_manager = self.main_game_view.audio_manager
+        new_game_view.setup()  # Start fresh from Wave 1
+        self.window.show_view(new_game_view)
+
+    def on_click_quit(self, event):
+        """Return to the main menu."""
+        self.ui_manager.disable()
+        if self.main_game_view.audio_manager:
+            if self.main_game_view.audio_manager:
+                self.main_game_view.audio_manager.stop_all_sounds()
+
+            # Play startup music
+            self.main_game_view.audio_manager.play_startup_sound()
+
+        main_menu_view = MainMenuView(self.main_game_view.audio_manager)
+        self.window.show_view(main_menu_view)
+
+
+
+
+    def on_hide_view(self):
+        self.ui_manager.disable()
+
+
 class TopDownShooter(arcade.View):
     def __init__(self):
         super().__init__()
@@ -74,9 +236,9 @@ class TopDownShooter(arcade.View):
 
         # Create the player at the center of the world
         self.player_sprite = Player(
-            "../Images/top_View-removedbg.png",  # Standing texture
-            "../Images/Moving1.png",             # First walking frame
-            "../Images/Moving2.png",             # Second walking frame
+            "Images/top_View-removedbg.png",  # Standing texture
+            "Images/Moving1.png",             # First walking frame
+            "Images/Moving2.png",             # Second walking frame
             PLAYER_SCALING,
         )
         self.player_sprite.center_x = WORLD_CENTER_X
@@ -86,7 +248,12 @@ class TopDownShooter(arcade.View):
         # Spawn the initial wave of enemies
         self.spawn_enemies()
 
-        self.load_map("../assets/map1.json")
+        self.load_map("assets/map1.json")
+
+    def pause_game(self):
+        """Pause the game and show the pause menu."""
+        pause_view = PauseMenuView(self)
+        self.window.show_view(pause_view)
 
     def on_show(self):
         self.window.set_mouse_visible(True)
@@ -101,9 +268,9 @@ class TopDownShooter(arcade.View):
             num_enemies = self.wave_number
             for _ in range(num_enemies):
                 enemy_sprite = Enemy(
-                    "../Images/enemy.png",          # Standing texture
-                    "../Images/enemy.png",          # First walking frame (reused)
-                    "../Images/enemy.png",          # Second walking frame (reused)
+                    "Images/enemy.png",          # Standing texture
+                    "Images/enemy.png",          # First walking frame (reused)
+                    "Images/enemy.png",          # Second walking frame (reused)
                     ENEMY_SCALING,
                 )
                 enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
@@ -126,9 +293,9 @@ class TopDownShooter(arcade.View):
 
     def spawn_boss(self):
         boss_sprite = Boss(
-            "../Images/boss.png",  # Path to the boss image
-            "../Images/boss.png",
-            "../Images/boss.png",
+            "Images/boss.png",  # Path to the boss image
+            "Images/boss.png",
+            "Images/boss.png",
             BOSS_SCALING,
         )
         boss_sprite.health = BOSS_HEALTH
@@ -164,12 +331,46 @@ class TopDownShooter(arcade.View):
         ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
         self.ammo_pickup_list.append(ammo_pickup)
 
+    def draw_outside_world_background(self):
+        
+        screen_width, screen_height = self.window.get_size()
+        arcade.draw_rectangle_filled(
+            self.camera.position[0] + screen_width / 2,
+            self.camera.position[1] + screen_height / 2,
+            screen_width,
+            screen_height,
+            arcade.color.DARK_BLUE,  # Background color for outside world
+        )
+
+
     def on_draw(self):
         arcade.start_render()
         self.camera.use()
 
+        # Draw the background outside the world boundary
+        self.draw_outside_world_background()
+
+        
+
+        # Draw the world circle
+        arcade.draw_circle_filled(
+            WORLD_CENTER_X,
+            WORLD_CENTER_Y,
+            WORLD_RADIUS,
+            (60, 60, 60, 255)  # World color (matches the existing background)
+        )
+
         # Draw the dark overlay first
         self.draw_dark_overlay()
+
+        # Draw the world circle outline
+        arcade.draw_circle_outline(
+            WORLD_CENTER_X,
+            WORLD_CENTER_Y,
+            WORLD_RADIUS,
+            arcade.color.WHITE,
+            3,
+        )
 
         # Draw flashlight effect for the player
         self.draw_light_cone(
@@ -181,26 +382,26 @@ class TopDownShooter(arcade.View):
             (180, 180, 180, 100)  # Light yellow with transparency
         )
 
-        # # Conditionally draw flashlight effects for all enemies
-        # if self.enable_enemy_ray_casting:
-        #     for enemy in self.enemy_list:
-        #         self.draw_light_cone(
-        #             enemy.center_x,
-        #             enemy.center_y,
-        #             enemy.angle,
-        #             ENEMY_SHOOT_RANGE,
-        #             CONE_ANGLE,
-        #             (0, 0, 0, 0)  # Light red with transparency
-        #         )
-        #     for boss in self.boss_list:
-        #         self.draw_light_cone(
-        #             boss.center_x,
-        #             boss.center_y,
-        #             boss.angle,
-        #             BOSS_SHOOT_RANGE,
-        #             CONE_ANGLE,
-        #             (128, 0, 128, 50)  # Light purple with transparency
-        #         )
+        # Conditionally draw flashlight effects for all enemies
+        if self.enable_enemy_ray_casting:
+            for enemy in self.enemy_list:
+                self.draw_light_cone(
+                    enemy.center_x,
+                    enemy.center_y,
+                    enemy.angle,
+                    ENEMY_SHOOT_RANGE,
+                    CONE_ANGLE,
+                    (255, 0, 0, 50),  # Light red with transparency
+                )
+            for boss in self.boss_list:
+                self.draw_light_cone(
+                    boss.center_x,
+                    boss.center_y,
+                    boss.angle,
+                    BOSS_SHOOT_RANGE,
+                    CONE_ANGLE,
+                    (128, 0, 128, 50),  # Light purple with transparency
+                )
 
         # Draw visible objects in cones
         self.draw_visible_objects()
@@ -778,8 +979,13 @@ class TopDownShooter(arcade.View):
         return distance < cone_length and angle_difference < (cone_angle / 2)
 
     def on_key_press(self, key, modifiers):
+
         self.pressed_keys.add(key)
         self.update_movement()
+
+        # Pause the game when ESC is pressed
+        if key == arcade.key.ESCAPE:
+            self.pause_game()
 
     def on_key_release(self, key, modifiers):
         if key in self.pressed_keys:
@@ -1029,12 +1235,19 @@ class GameOverView(arcade.View):
         self.ui_manager.disable()
 
     def on_click_quit(self, event):
-        # Stop any dying sounds
+        """Return to the main menu."""
         if self.audio_manager:
-            self.audio_manager.stop_player_die_sound()
-            self.audio_manager.stop_enemy_die_sound()
+            # Stop all sounds
+            self.audio_manager.stop_all_sounds()
 
-        arcade.close_window()
+            # Play startup music
+            self.audio_manager.play_startup_sound()
+
+        main_menu_view = MainMenuView(self.audio_manager)
+        self.window.show_view(main_menu_view)
+        self.ui_manager.disable()
+
+
 
     def on_hide_view(self):
         # Stop any dying sounds
