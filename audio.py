@@ -5,14 +5,14 @@ import arcade
 class AudioManager:
     def __init__(self):
         # Load sounds
-        self.startup_sound = arcade.load_sound("sounds/startup_sound.mp3")
-        self.game_sound = arcade.load_sound("sounds/game_sound.mp3")
-        self.player_walk_sound = arcade.load_sound("sounds/player_walk.mp3")
-        self.player_kill_enemy_sound = arcade.load_sound("sounds/player_kill_enemy.mp3")
-        self.enemy_near_player_sound = arcade.load_sound("sounds/enemy_near_player.mp3")
-        self.enemy_die_sound = arcade.load_sound("sounds/enemy_die.mp3")
-        self.player_die_sound = arcade.load_sound("sounds/player_die.mp3")
-        self.boss_sound = arcade.load_sound("sounds/boss_sound.mp3")  # Load boss sound
+        self.startup_sound = arcade.load_sound("resources/sounds/startup_sound.mp3")
+        self.game_sound = arcade.load_sound("resources/sounds/game_sound.mp3")
+        self.player_walk_sound = arcade.load_sound("resources/sounds/player_walk.mp3")
+        self.player_kill_enemy_sound = arcade.load_sound("resources/sounds/player_kill_enemy.mp3")
+        self.enemy_near_player_sound = arcade.load_sound("resources/sounds/enemy_near_player.mp3")
+        self.enemy_die_sound = arcade.load_sound("resources/sounds/enemy_die.mp3")
+        self.player_die_sound = arcade.load_sound("resources/sounds/player_die.mp3")
+        self.boss_sound = arcade.load_sound("resources/sounds/boss_sound.mp3")  # Load boss sound
 
         # Keep track of sound players for looping sounds
         self.startup_sound_player = None

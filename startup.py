@@ -52,7 +52,7 @@ class StartupView(arcade.View):
         # Flashlight dropping animation
         self.flashlight_dropping = False  # Flag for animation
         self.flashlight_sprite = arcade.Sprite(
-            "Images/flashlight.png", FLASHLIGHT_SCALING
+            "resources/Images/flashlight.png", FLASHLIGHT_SCALING
         )  # Flashlight sprite
         self.flashlight_sprite.center_x = self.window.width // 2
         self.flashlight_sprite.center_y = self.window.height + 150  # Start flashlight above screen
@@ -63,9 +63,9 @@ class StartupView(arcade.View):
 
         # Player sprite for reference
         self.player_sprite = Player(
-            "Images/top_View-removedbg.png",  # Standing texture
-            "Images/Moving1.png",             # Walking texture 1
-            "Images/Moving2.png",             # Walking texture 2
+            "resources/Images/top_View-removedbg.png",  # Standing texture
+            "resources/Images/Moving1.png",             # Walking texture 1
+            "resources/Images/Moving2.png",             # Walking texture 2
             PLAYER_SCALING,
         )
         self.player_sprite.center_x = 0  # Start player on the left side

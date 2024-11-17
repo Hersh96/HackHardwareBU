@@ -10,7 +10,7 @@ class Player(arcade.Sprite):
             arcade.load_texture(walking_image1),
             arcade.load_texture(walking_image2),
         ]
-        self.dead_texture = arcade.load_texture("Images/dead_sprite_optimized.png")
+        self.dead_texture = arcade.load_texture("resources/Images/dead_sprite_optimized.png")
         smaller_hit_box = [
             (-self.width * 0.85, -self.height * 0.85),  # Bottom-left
             (self.width * 0.85, -self.height * 0.85),  # Bottom-right

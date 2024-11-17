@@ -205,7 +205,7 @@ class TopDownShooter(arcade.View):
         self.ammo_spawn_timer = 0
 
         # Wave number
-        self.wave_number = 5
+        self.wave_number = 1
 
         # Audio Manager will be set before setup()
         self.audio_manager = AudioManager()  # Initialize AudioManager
@@ -236,9 +236,9 @@ class TopDownShooter(arcade.View):
 
         # Create the player at the center of the world
         self.player_sprite = Player(
-            "Images/top_View-removedbg.png",  # Standing texture
-            "Images/Moving1.png",             # First walking frame
-            "Images/Moving2.png",             # Second walking frame
+            "resources/Images/top_View-removedbg.png",  # Standing texture
+            "resources/Images/Moving1.png",             # First walking frame
+            "resources/Images/Moving2.png",             # Second walking frame
             PLAYER_SCALING,
         )
         self.player_sprite.center_x = WORLD_CENTER_X
@@ -248,7 +248,7 @@ class TopDownShooter(arcade.View):
         # Spawn the initial wave of enemies
         self.spawn_enemies()
 
-        self.load_map("assets/map1.json")
+        self.load_map("resources/assets/map1.json")
 
     def pause_game(self):
         """Pause the game and show the pause menu."""
@@ -268,9 +268,9 @@ class TopDownShooter(arcade.View):
             num_enemies = self.wave_number
             for _ in range(num_enemies):
                 enemy_sprite = Enemy(
-                    "Images/enemy.png",          # Standing texture
-                    "Images/enemy.png",          # First walking frame (reused)
-                    "Images/enemy.png",          # Second walking frame (reused)
+                    "resources/Images/enemy.png",          # Standing texture
+                    "resources/Images/enemy.png",          # First walking frame (reused)
+                    "resources/Images/enemy.png",          # Second walking frame (reused)
                     ENEMY_SCALING,
                 )
                 enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
@@ -293,9 +293,9 @@ class TopDownShooter(arcade.View):
 
     def spawn_boss(self):
         boss_sprite = Boss(
-            "Images/boss.png",  # Path to the boss image
-            "Images/boss.png",
-            "Images/boss.png",
+            "resources/Images/boss.png",  # Path to the boss image
+            "resources/Images/boss.png",
+            "resources/Images/boss.png",
             BOSS_SCALING,
         )
         boss_sprite.health = BOSS_HEALTH
