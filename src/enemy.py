@@ -1,4 +1,3 @@
-#enemy.py
 import arcade
 from constants import ENEMY_HEALTH
 
@@ -26,3 +25,25 @@ class Enemy(arcade.Sprite):
                 self.texture = self.walking_textures[self.current_frame]
         else:
             self.texture = self.standing_texture
+
+    def handle_collision(self, wall_list):
+        """
+        Handle collision with walls and prevent enemies from walking through them.
+        """
+        # Check for collisions with walls
+        walls_hit = arcade.check_for_collision_with_list(self, wall_list)
+        for wall in walls_hit:
+            # Push the enemy out of the wall
+            if self.change_x > 0:  # Moving right
+                self.right = wall.left
+            elif self.change_x < 0:  # Moving left
+                self.left = wall.right
+            if self.change_y > 0:  # Moving up
+                self.top = wall.bottom
+            elif self.change_y < 0:  # Moving down
+                self.bottom = wall.top
+
+        # Reset movement to prevent clipping
+        if walls_hit:
+            self.change_x = 0
+            self.change_y = 0

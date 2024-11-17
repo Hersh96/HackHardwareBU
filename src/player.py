@@ -10,6 +10,15 @@ class Player(arcade.Sprite):
             arcade.load_texture(walking_image1),
             arcade.load_texture(walking_image2),
         ]
+        self.dead_texture = arcade.load_texture("../Images/dead_sprite_optimized.png")
+        smaller_hit_box = [
+            (-self.width * 0.85, -self.height * 0.85),  # Bottom-left
+            (self.width * 0.85, -self.height * 0.85),  # Bottom-right
+            (self.width * 0.8, self.height * 0.8),  # Top-right
+            (-self.width * 0.8, self.height * 0.8)  # Top-left
+        ]
+
+        self.set_hit_box(smaller_hit_box)
         self.current_frame = 0  # For alternating between walking textures
         self.health = PLAYER_HEALTH
         self.ammo = INITIAL_AMMO

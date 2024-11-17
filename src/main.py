@@ -1,5 +1,3 @@
-# main.py
-
 import arcade
 import random
 import math
@@ -15,6 +13,7 @@ from bullet import Bullet
 from ammo_pickup import AmmoPickup
 from audio import AudioManager
 from wall import Wall
+
 
 class TopDownShooter(arcade.View):
     def __init__(self):
@@ -44,10 +43,11 @@ class TopDownShooter(arcade.View):
         self.ammo_spawn_timer = 0
 
         # Wave number
-        self.wave_number = 1
+        self.wave_number = 5
 
         # Audio Manager will be set before setup()
-        self.audio_manager = None
+        self.audio_manager = AudioManager()  # Initialize AudioManager
+        self.audio_manager.play_game_sound()
 
         # Player death handling
         self.player_dead = False
@@ -65,9 +65,12 @@ class TopDownShooter(arcade.View):
         # Flag to check if boss is active
         self.boss_active = False
 
+        # Enable enemy ray casting
+        self.enable_enemy_ray_casting = True
+
     def setup(self):
         # Set background color
-        arcade.set_background_color(arcade.color.BLEU_DE_FRANCE)
+        arcade.set_background_color((60, 60, 60, 255))
 
         # Create the player at the center of the world
         self.player_sprite = Player(
@@ -83,13 +86,7 @@ class TopDownShooter(arcade.View):
         # Spawn the initial wave of enemies
         self.spawn_enemies()
 
-        # Load the map
         self.load_map("../assets/map1.json")
-
-        # Play game sound
-        if self.audio_manager:
-            self.audio_manager.stop_startup_sound()
-            self.audio_manager.play_game_sound()
 
     def on_show(self):
         self.window.set_mouse_visible(True)
@@ -129,15 +126,17 @@ class TopDownShooter(arcade.View):
 
     def spawn_boss(self):
         boss_sprite = Boss(
-            "../images/boss.png",  # Adjusted path to boss image
-            "../images/boss.png",  # Using the same image for all frames
-            "../images/boss.png",
+            "../Images/boss.png",  # Path to the boss image
+            "../Images/boss.png",
+            "../Images/boss.png",
             BOSS_SCALING,
         )
         boss_sprite.health = BOSS_HEALTH
         boss_sprite.center_x = WORLD_CENTER_X
-        boss_sprite.center_y = WORLD_CENTER_Y - 400  # Spawn boss below the player
+        boss_sprite.center_y = WORLD_CENTER_Y - 400  # Spawn position
         self.boss_list.append(boss_sprite)
+
+        # Play the boss sound
         if self.audio_manager:
             self.audio_manager.play_boss_sound()
 
@@ -165,65 +164,259 @@ class TopDownShooter(arcade.View):
         ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
         self.ammo_pickup_list.append(ammo_pickup)
 
-    def draw_cones(self):
-        # Draw player cone
-        self.draw_cone(
+    def on_draw(self):
+        arcade.start_render()
+        self.camera.use()
+
+        # Draw the dark overlay first
+        self.draw_dark_overlay()
+
+        # Draw flashlight effect for the player
+        self.draw_light_cone(
             self.player_sprite.center_x,
             self.player_sprite.center_y,
             self.player_sprite.angle,
             CONE_LENGTH,
             CONE_ANGLE,
-            arcade.color.YELLOW,
+            (180, 180, 180, 100)  # Light yellow with transparency
         )
 
-        # Draw enemy cones
+        # # Conditionally draw flashlight effects for all enemies
+        # if self.enable_enemy_ray_casting:
+        #     for enemy in self.enemy_list:
+        #         self.draw_light_cone(
+        #             enemy.center_x,
+        #             enemy.center_y,
+        #             enemy.angle,
+        #             ENEMY_SHOOT_RANGE,
+        #             CONE_ANGLE,
+        #             (0, 0, 0, 0)  # Light red with transparency
+        #         )
+        #     for boss in self.boss_list:
+        #         self.draw_light_cone(
+        #             boss.center_x,
+        #             boss.center_y,
+        #             boss.angle,
+        #             BOSS_SHOOT_RANGE,
+        #             CONE_ANGLE,
+        #             (128, 0, 128, 50)  # Light purple with transparency
+        #         )
+
+        # Draw visible objects in cones
+        self.draw_visible_objects()
+
+        # Draw all sprites and HUD elements on the top-most layer
+        self.player_list.draw()
+        self.enemy_list.draw()
+        self.boss_list.draw()
+        self.bullet_list.draw()
+        self.ammo_pickup_list.draw()
+        self.health_pickup_list.draw()
+        self.draw_hud()
+        self.draw_enemy_arrows()
+
+    def draw_dark_overlay(self):
+        """
+        Create a full-screen dark overlay to simulate limited vision.
+        """
+        screen_width, screen_height = self.window.width, self.window.height
+        arcade.draw_lrtb_rectangle_filled(
+            self.camera.position[0],
+            self.camera.position[0] + screen_width,
+            self.camera.position[1] + screen_height,
+            self.camera.position[1],
+            (0, 0, 0, 150)  # Dark overlay with alpha for transparency
+        )
+
+    def draw_light_cone(self, start_x, start_y, facing_angle, cone_length, cone_angle, color):
+        step_angle = 1  # Adjust for smoother rendering
+        ray_points = []
+
+        for angle_offset in range(-cone_angle // 2, cone_angle // 2 + 1, step_angle):
+            angle = facing_angle + angle_offset
+            end_point = self.cast_ray(start_x, start_y, angle, cone_length, self.wall_list)
+            ray_points.append(end_point)
+
+        # Draw the flashlight cone with transparency
+        for i in range(len(ray_points) - 1):
+            arcade.draw_triangle_filled(
+                start_x, start_y,
+                ray_points[i][0], ray_points[i][1],
+                ray_points[i + 1][0], ray_points[i + 1][1],
+                color
+            )
+
+    def draw_visible_objects(self):
+        """
+        Draw visible objects (including walls) dynamically based on visibility.
+        """
+        visible_objects = self.get_visible_objects()
+
+        # Highlight and draw visible walls above the overlay
+        for obj in visible_objects:
+            if obj in self.wall_list:
+                obj.color = arcade.color.WHITE  # Highlight visible walls
+            obj.draw()
+
+        # Draw invisible walls (dimmed) below the overlay
+        for wall in self.wall_list:
+            if wall not in visible_objects:
+                wall.color = arcade.color.GRAY  # Dim invisible walls
+                wall.draw()
+
+    def get_visible_objects(self):
+        visible_objects = []
+
+        # Check objects within the player's cone
+        visible_objects.extend(self.get_objects_in_cone(
+            self.player_sprite.center_x,
+            self.player_sprite.center_y,
+            self.player_sprite.angle,
+            CONE_LENGTH,
+            CONE_ANGLE
+        ))
+
+        # Check objects within each enemy's cone
         for enemy in self.enemy_list:
-            self.draw_cone(
+            visible_objects.extend(self.get_objects_in_cone(
                 enemy.center_x,
                 enemy.center_y,
                 enemy.angle,
                 ENEMY_SHOOT_RANGE,
-                CONE_ANGLE,
-                arcade.color.RED,
-            )
+                CONE_ANGLE
+            ))
 
-        # Draw boss cones
+        # Check objects within each boss's cone
         for boss in self.boss_list:
-            self.draw_cone(
+            visible_objects.extend(self.get_objects_in_cone(
                 boss.center_x,
                 boss.center_y,
                 boss.angle,
                 BOSS_SHOOT_RANGE,
-                CONE_ANGLE,
-                arcade.color.PURPLE,
-            )
+                CONE_ANGLE
+            ))
 
-    def draw_cone(self, start_x, start_y, facing_angle, cone_length, cone_angle, color):
-        left_angle = math.radians(facing_angle + cone_angle)
-        right_angle = math.radians(facing_angle - cone_angle)
+        return visible_objects
 
-        end_x1 = start_x + math.cos(left_angle) * cone_length
-        end_y1 = start_y + math.sin(left_angle) * cone_length
-        end_x2 = start_x + math.cos(right_angle) * cone_length
-        end_y2 = start_y + math.sin(right_angle) * cone_length
+    def get_objects_in_cone(self, start_x, start_y, facing_angle, cone_length, cone_angle):
+        visible_objects = []
 
-        arcade.draw_line(start_x, start_y, end_x1, end_y1, color, 2)
-        arcade.draw_line(start_x, start_y, end_x2, end_y2, color, 2)
-        arcade.draw_arc_filled(
-            start_x,
-            start_y,
-            cone_length * 2,
-            cone_length * 2,
-            color + (50,),
-            facing_angle - cone_angle,
-            facing_angle + cone_angle,
-        )
+        # Combine all relevant sprite lists into a single iterable
+        all_objects = list(self.wall_list) + list(self.ammo_pickup_list) + list(self.health_pickup_list) + list(self.enemy_list) + list(self.boss_list)
+
+        for obj in all_objects:
+            if self.is_object_visible_in_cone(start_x, start_y, facing_angle, obj, cone_length, cone_angle):
+                visible_objects.append(obj)
+
+        return visible_objects
+
+    def has_line_of_sight(self, shooter, target, wall_list):
+        """
+        Check if there is a clear line of sight between shooter and target, unobstructed by walls.
+        """
+        ray_line = [(shooter.center_x, shooter.center_y), (target.center_x, target.center_y)]
+        for wall in wall_list:
+            for wall_line in wall.get_lines():
+                if self.get_line_intersection(ray_line, wall_line):
+                    return False
+        return True
+
+    def is_object_visible_in_cone(self, start_x, start_y, facing_angle, obj, cone_length, cone_angle):
+        """
+        Check if an object is visible within a cone.
+        """
+        dx = obj.center_x - start_x
+        dy = obj.center_y - start_y
+        distance = math.hypot(dx, dy)
+        angle_to_object = math.degrees(math.atan2(dy, dx))
+        angle_difference = abs((angle_to_object - facing_angle + 180) % 360 - 180)
+
+        # Check if the object is within the cone's range and angle
+        if distance < cone_length and angle_difference < cone_angle / 2:
+            # Ensure the object is not obscured by a wall
+            return self.has_line_of_sight_to_point(start_x, start_y, obj.center_x, obj.center_y)
+        return False
+
+    def has_line_of_sight_to_point(self, start_x, start_y, end_x, end_y):
+        """
+        Check if there is a clear line of sight to a point (end_x, end_y) from (start_x, start_y).
+        """
+        ray_line = [(start_x, start_y), (end_x, end_y)]
+
+        # Check for intersection with walls
+        for wall in self.wall_list:
+            for wall_line in wall.get_lines():
+                if self.get_line_intersection(ray_line, wall_line):
+                    return False
+
+        return True
+
+    def get_line_intersection(self, line1, line2):
+        """
+        Finds the intersection point of two lines if it exists.
+        Each line is defined as [(x1, y1), (x2, y2)].
+        Returns the intersection point (x, y) or None if no intersection exists.
+        """
+        x1, y1 = line1[0]
+        x2, y2 = line1[1]
+        x3, y3 = line2[0]
+        x4, y4 = line2[1]
+
+        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denom == 0:
+            return None  # Lines are parallel or coincident
+
+        intersect_x = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom
+        intersect_y = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom
+
+        # Check if the intersection point is within both line segments
+        if (
+            min(x1, x2) <= intersect_x <= max(x1, x2)
+            and min(y1, y2) <= intersect_y <= max(y1, y2)
+            and min(x3, x4) <= intersect_x <= max(x3, x4)
+            and min(y3, y4) <= intersect_y <= max(y3, y4)
+        ):
+            return (intersect_x, intersect_y)
+
+        return None  # No valid intersection within the segments
+
+    def cast_ray(self, start_x, start_y, angle, max_length, wall_list):
+        """
+        Cast a ray from (start_x, start_y) in the given angle up to max_length, stopping at walls.
+        Returns the endpoint of the ray.
+        """
+        end_x = start_x + math.cos(math.radians(angle)) * max_length
+        end_y = start_y + math.sin(math.radians(angle)) * max_length
+
+        ray_line = [(start_x, start_y), (end_x, end_y)]
+        closest_distance = max_length
+        closest_point = (end_x, end_y)
+
+        # Check for intersection with walls
+        for wall in wall_list:
+            for wall_line in wall.get_lines():  # Wall defines its edges as line segments
+                intersection = self.get_line_intersection(ray_line, wall_line)
+                if intersection:
+                    distance = math.hypot(intersection[0] - start_x, intersection[1] - start_y)
+                    if distance < closest_distance:
+                        closest_distance = distance
+                        closest_point = intersection
+
+        # Ensure the ray stops exactly at the wall boundary
+        if closest_distance < max_length:
+            end_x = start_x + math.cos(math.radians(angle)) * closest_distance
+            end_y = start_y + math.sin(math.radians(angle)) * closest_distance
+
+        return (end_x, end_y)
 
     def draw_enemy_arrows(self):
         for enemy in self.enemy_list:
             # Check if time since last fire exceeds 15 seconds (assuming 60 FPS)
             if enemy.time_since_last_fire >= 15 * 60:
                 self.draw_arrow_towards_enemy(enemy)
+        for boss in self.boss_list:
+            if boss.time_since_last_fire >= 15 * 60:
+                self.draw_arrow_towards_enemy(boss)
 
     def draw_arrow_towards_enemy(self, enemy):
         # Calculate the direction vector from the player to the enemy
@@ -274,7 +467,7 @@ class TopDownShooter(arcade.View):
 
     def get_point_on_screen_edge(self, angle, center_x, center_y, width, height):
         tan_theta = math.tan(angle)
-        if angle >= -math.pi / 2 and angle <= math.pi / 2:
+        if -math.pi / 2 <= angle <= math.pi / 2:
             x = center_x + width / 2
             y = center_y + (width / 2) * tan_theta
             if y > center_y + height / 2:
@@ -287,37 +480,6 @@ class TopDownShooter(arcade.View):
                 y = center_y - height / 2
                 x = center_x - (height / 2) / tan_theta
         return x, y
-
-    def on_draw(self):
-        arcade.start_render()
-        self.camera.use()
-
-        # Draw the world boundary circle
-        arcade.draw_circle_outline(
-            WORLD_CENTER_X,
-            WORLD_CENTER_Y,
-            WORLD_RADIUS,
-            arcade.color.WHITE,
-            2,
-        )
-
-        # Draw sprites
-        self.wall_list.draw()
-        self.ammo_pickup_list.draw()
-        self.health_pickup_list.draw()
-        self.bullet_list.draw()
-        self.enemy_list.draw()
-        self.boss_list.draw()
-        self.player_list.draw()
-
-        # Draw cones
-        self.draw_cones()
-
-        # Draw health and ammo
-        self.draw_hud()
-
-        # Draw arrows pointing towards enemies that haven't fired for 15 seconds
-        self.draw_enemy_arrows()
 
     def load_map(self, map_file):
         # Clear existing walls
@@ -382,6 +544,7 @@ class TopDownShooter(arcade.View):
 
     def on_update(self, delta_time):
         if self.player_dead:
+            # Stop boss sound if player dies
             if self.audio_manager:
                 self.audio_manager.stop_boss_sound()
             # Increment death timer
@@ -459,7 +622,7 @@ class TopDownShooter(arcade.View):
         # Handle enemies
         self.handle_enemies()
 
-        # Handle boss
+        # Handle bosses
         self.handle_bosses()
 
         # Handle player shooting
@@ -492,6 +655,7 @@ class TopDownShooter(arcade.View):
 
     def handle_bullets(self):
         for bullet in self.bullet_list:
+            # Remove bullets that leave the world boundary
             dx = bullet.center_x - WORLD_CENTER_X
             dy = bullet.center_y - WORLD_CENTER_Y
             distance = math.hypot(dx, dy)
@@ -499,11 +663,15 @@ class TopDownShooter(arcade.View):
                 bullet.remove_from_sprite_lists()
                 continue
 
+            # Check if the bullet hits a wall
+            walls_hit = arcade.check_for_collision_with_list(bullet, self.wall_list)
+            if walls_hit:
+                bullet.remove_from_sprite_lists()
+                continue
+
             if bullet.owner == 'player':
-                # Check collision with enemies
                 hit_list = arcade.check_for_collision_with_list(bullet, self.enemy_list)
                 hit_list += arcade.check_for_collision_with_list(bullet, self.boss_list)
-
                 for target in hit_list:
                     if isinstance(target, Enemy):
                         target.health -= PLAYER_BULLET_DAMAGE
@@ -524,65 +692,53 @@ class TopDownShooter(arcade.View):
                                 self.audio_manager.play_player_kill_enemy_sound()
                         break  # Only one collision per bullet
 
-
                     elif isinstance(target, Boss):
-
                         target.health -= PLAYER_BULLET_DAMAGE
-
                         bullet.remove_from_sprite_lists()
-
                         if target.health <= 0:
-
                             self.bosses_defeated += 1
-
                             # Restore player's health to full
-
                             self.player_sprite.health = PLAYER_HEALTH
-
                             target.remove_from_sprite_lists()
-
                             if self.audio_manager:
                                 self.audio_manager.play_enemy_die_sound()
-
                                 self.audio_manager.stop_boss_sound()  # Stop boss sound
-
                         else:
-
-                            # Play player hit enemy sound
-
+                            # Play player hit boss sound
                             if self.audio_manager:
                                 self.audio_manager.play_player_kill_enemy_sound()
-
                         break  # Only one collision per bullet
-
             elif bullet.owner == 'enemy':
                 if arcade.check_for_collision(bullet, self.player_sprite):
                     self.player_sprite.health -= ENEMY_BULLET_DAMAGE
                     bullet.remove_from_sprite_lists()
                     if self.player_sprite.health <= 0:
+                        self.player_sprite.texture = self.player_sprite.dead_texture
                         if self.audio_manager:
                             self.audio_manager.stop_game_sound()
                             self.audio_manager.stop_player_walk_sound()
                             self.audio_manager.stop_enemy_near_player_sound()
                             self.audio_manager.play_player_die_sound()
+                            self.audio_manager.stop_boss_sound()
                         self.player_dead = True
                         self.death_timer = 0
-                        self.player_sprite.remove_from_sprite_lists()
+                        # self.player_sprite.remove_from_sprite_lists()
                         break
-
             elif bullet.owner == 'boss':
                 if arcade.check_for_collision(bullet, self.player_sprite):
                     self.player_sprite.health -= BOSS_BULLET_DAMAGE
                     bullet.remove_from_sprite_lists()
                     if self.player_sprite.health <= 0:
+                        self.player_sprite.texture = self.player_sprite.dead_texture
                         if self.audio_manager:
                             self.audio_manager.stop_game_sound()
                             self.audio_manager.stop_player_walk_sound()
                             self.audio_manager.stop_enemy_near_player_sound()
                             self.audio_manager.play_player_die_sound()
+                            self.audio_manager.stop_boss_sound()
                         self.player_dead = True
                         self.death_timer = 0
-                        self.player_sprite.remove_from_sprite_lists()
+                        # self.player_sprite.remove_from_sprite_lists()
                         break
 
     def handle_player_shooting(self):
@@ -600,7 +756,7 @@ class TopDownShooter(arcade.View):
                 self.player_sprite.angle,
                 CONE_LENGTH,
                 CONE_ANGLE,
-            ):
+            ) and self.has_line_of_sight(self.player_sprite, target, self.wall_list):
                 if self.player_sprite.ammo > 0 and self.player_sprite.shoot_timer <= 0:
                     bullet = Bullet(5, arcade.color.YELLOW, 'player', 10)
                     bullet.center_x = self.player_sprite.center_x
@@ -613,32 +769,13 @@ class TopDownShooter(arcade.View):
                     self.player_sprite.ammo -= 1
                     break  # Shoot only once per update
 
-    def handle_pickups(self):
-        # Ammo pickups
-        ammo_hit_list = arcade.check_for_collision_with_list(
-            self.player_sprite, self.ammo_pickup_list
-        )
-        for ammo in ammo_hit_list:
-            self.player_sprite.ammo += AMMO_PICKUP_AMOUNT
-            ammo.remove_from_sprite_lists()
-
-        # Health pickups
-        health_hit_list = arcade.check_for_collision_with_list(
-            self.player_sprite, self.health_pickup_list
-        )
-        for health in health_hit_list:
-            self.player_sprite.health += HEALTH_PICKUP_AMOUNT
-            if self.player_sprite.health > PLAYER_HEALTH:
-                self.player_sprite.health = PLAYER_HEALTH  # Cap at max health
-            health.remove_from_sprite_lists()
-
     def is_within_cone(self, sprite, target_x, target_y, facing_angle, cone_length, cone_angle):
         dx = target_x - sprite.center_x
         dy = target_y - sprite.center_y
         distance = math.hypot(dx, dy)
         angle_to_target = math.degrees(math.atan2(dy, dx))
         angle_difference = abs((angle_to_target - facing_angle + 180) % 360 - 180)
-        return distance < cone_length and angle_difference < cone_angle
+        return distance < cone_length and angle_difference < (cone_angle / 2)
 
     def on_key_press(self, key, modifiers):
         self.pressed_keys.add(key)
@@ -677,9 +814,10 @@ class TopDownShooter(arcade.View):
             # Keep enemy within world circle
             self.keep_sprite_within_world(enemy)
 
-            distance_to_player = arcade.get_distance_between_sprites(
-                enemy, self.player_sprite
-            )
+            # Handle collision with walls
+            enemy.handle_collision(self.wall_list)
+
+            distance_to_player = arcade.get_distance_between_sprites(enemy, self.player_sprite)
 
             if distance_to_player <= ENEMY_DETECTION_RANGE:
                 enemy_near_player = True  # At least one enemy is near
@@ -690,12 +828,8 @@ class TopDownShooter(arcade.View):
 
                 if distance_to_player > ENEMY_SHOOT_RANGE:
                     # Move towards player
-                    enemy.change_x = ENEMY_MOVEMENT_SPEED * math.cos(
-                        math.radians(enemy.angle)
-                    )
-                    enemy.change_y = ENEMY_MOVEMENT_SPEED * math.sin(
-                        math.radians(enemy.angle)
-                    )
+                    enemy.change_x = ENEMY_MOVEMENT_SPEED * math.cos(math.radians(enemy.angle))
+                    enemy.change_y = ENEMY_MOVEMENT_SPEED * math.sin(math.radians(enemy.angle))
                 else:
                     # Stop movement
                     enemy.change_x = 0
@@ -710,7 +844,7 @@ class TopDownShooter(arcade.View):
                             enemy.angle,
                             ENEMY_SHOOT_RANGE,
                             CONE_ANGLE,
-                        ):
+                        ) and self.has_line_of_sight(enemy, self.player_sprite, self.wall_list):
                             bullet = Bullet(5, arcade.color.RED, 'enemy', ENEMY_BULLET_SPEED)
                             bullet.center_x = enemy.center_x
                             bullet.center_y = enemy.center_y
@@ -735,11 +869,9 @@ class TopDownShooter(arcade.View):
                 if random.random() < 0.02:
                     enemy.change_x = random.uniform(-ENEMY_MOVEMENT_SPEED, ENEMY_MOVEMENT_SPEED)
                     enemy.change_y = random.uniform(-ENEMY_MOVEMENT_SPEED, ENEMY_MOVEMENT_SPEED)
-                # Update enemy's angle based on movement direction
                 if enemy.change_x != 0 or enemy.change_y != 0:
                     enemy.angle = math.degrees(math.atan2(enemy.change_y, enemy.change_x))
 
-                # Increment time since last fire
                 enemy.time_since_last_fire += 1
 
             # Apply movement
@@ -757,9 +889,10 @@ class TopDownShooter(arcade.View):
             # Keep boss within world circle
             self.keep_sprite_within_world(boss)
 
-            distance_to_player = arcade.get_distance_between_sprites(
-                boss, self.player_sprite
-            )
+            # Handle collision with walls
+            boss.handle_collision(self.wall_list)
+
+            distance_to_player = arcade.get_distance_between_sprites(boss, self.player_sprite)
 
             # Boss always follows the player
             dx = self.player_sprite.center_x - boss.center_x
@@ -768,12 +901,8 @@ class TopDownShooter(arcade.View):
 
             if distance_to_player > BOSS_SHOOT_RANGE:
                 # Move towards player
-                boss.change_x = BOSS_MOVEMENT_SPEED * math.cos(
-                    math.radians(boss.angle)
-                )
-                boss.change_y = BOSS_MOVEMENT_SPEED * math.sin(
-                    math.radians(boss.angle)
-                )
+                boss.change_x = BOSS_MOVEMENT_SPEED * math.cos(math.radians(boss.angle))
+                boss.change_y = BOSS_MOVEMENT_SPEED * math.sin(math.radians(boss.angle))
             else:
                 # Stop movement
                 boss.change_x = 0
@@ -788,7 +917,7 @@ class TopDownShooter(arcade.View):
                         boss.angle,
                         BOSS_SHOOT_RANGE,
                         CONE_ANGLE,
-                    ):
+                    ) and self.has_line_of_sight(boss, self.player_sprite, self.wall_list):
                         bullet = Bullet(7, arcade.color.PURPLE, 'boss', BOSS_BULLET_SPEED)
                         bullet.center_x = boss.center_x
                         bullet.center_y = boss.center_y
@@ -808,6 +937,25 @@ class TopDownShooter(arcade.View):
 
             # Apply movement
             boss.update()
+
+    def handle_pickups(self):
+        # Ammo pickups
+        ammo_hit_list = arcade.check_for_collision_with_list(
+            self.player_sprite, self.ammo_pickup_list
+        )
+        for ammo in ammo_hit_list:
+            self.player_sprite.ammo += AMMO_PICKUP_AMOUNT
+            ammo.remove_from_sprite_lists()
+
+        # Health pickups
+        health_hit_list = arcade.check_for_collision_with_list(
+            self.player_sprite, self.health_pickup_list
+        )
+        for health in health_hit_list:
+            self.player_sprite.health += HEALTH_PICKUP_AMOUNT
+            if self.player_sprite.health > PLAYER_HEALTH:
+                self.player_sprite.health = PLAYER_HEALTH  # Cap at max health
+            health.remove_from_sprite_lists()
 
 
 class GameOverView(arcade.View):
@@ -895,8 +1043,14 @@ class GameOverView(arcade.View):
             self.audio_manager.stop_enemy_die_sound()
         self.ui_manager.disable()
 
+
 def run_game():
-    pass
+    window = arcade.Window(SCREEN_WIDTH, SCREEN_HEIGHT, "Top-Down Shooter")
+    start_view = TopDownShooter()
+    start_view.setup()
+    window.show_view(start_view)
+    arcade.run()
+
 
 if __name__ == "__main__":
     run_game()
