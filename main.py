@@ -1,3 +1,5 @@
+import os
+import sys
 import arcade
 import random
 import math
@@ -14,7 +16,9 @@ from ammo_pickup import AmmoPickup
 from audio import AudioManager
 from wall import Wall
 
-
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    os.chdir(sys._MEIPASS)
+    
 class MainMenuView(arcade.View):
     def __init__(self, audio_manager=None):
         super().__init__()
@@ -181,6 +185,20 @@ class TopDownShooter(arcade.View):
     def __init__(self):
         super().__init__()
         self.pressed_keys = set()  # To track currently pressed keys
+        self.show_tutorial = True  # Show tutorial text initially
+        self.tutorial_timer = 0    # Timer to hide the tutorial text
+
+        self.key_w = arcade.Sprite(":resources:images/items/keyBlue.png", scale=0.5)
+        self.key_a = arcade.Sprite(":resources:images/items/keyBlue.png", scale=0.5)
+        self.key_s = arcade.Sprite(":resources:images/items/keyBlue.png", scale=0.5)
+        self.key_d = arcade.Sprite(":resources:images/items/keyBlue.png", scale=0.5)
+        self.mouse_icon = arcade.Sprite(":resources:images/enemies/mouse.png", scale=0.3)
+
+        self.key_w.center_x, self.key_w.center_y = 400, 400
+        self.key_a.center_x, self.key_a.center_y = 350, 350
+        self.key_s.center_x, self.key_s.center_y = 400, 300
+        self.key_d.center_x, self.key_d.center_y = 450, 350
+        self.mouse_icon.center_x, self.mouse_icon.center_y = 600, 350
 
         # Sprite lists
         self.player_list = arcade.SpriteList()
@@ -229,6 +247,78 @@ class TopDownShooter(arcade.View):
 
         # Enable enemy ray casting
         self.enable_enemy_ray_casting = False
+
+    def draw_tutorial_text(self):
+        """
+        Display a fancy tutorial with icons and text.
+        """
+        # Draw a semi-transparent background
+        arcade.draw_rectangle_filled(
+            self.camera.position[0] + self.window.width / 2,
+            self.camera.position[1] + self.window.height / 2,
+            700, 400,
+            (0, 0, 0, 200)
+        )
+
+        # Draw instructional text
+        tutorial_lines = [
+            "Use WASD to move.",
+            "Aim with your mouse cursor.",
+            "Shooting is automatic.",
+            "Collect ammo (Blue Orbs)",
+            "Enemies drop ammo and health(only when player is at 10HP).",
+            "Green arrows show enemy positions after 20 seconds.",
+            "Wave 5 is a boss level(Full HP on defeating boss).",
+            "Each wave has more enemies. Survive as long as you can!",
+        ]
+        screen_center_x = self.camera.position[0] + self.window.width / 2
+        screen_center_y = self.camera.position[1] + self.window.height / 2
+        y_offset = 100  # Start drawing text higher up on the screen
+
+        for line in tutorial_lines:
+            arcade.draw_text(
+                line,
+                screen_center_x,
+                screen_center_y + y_offset,
+                arcade.color.WHITE,
+                font_size=16,
+                font_name="Arial",
+                anchor_x="center"
+            )
+            y_offset -= 30  # Move each line down by 30 pixels
+
+        # Draw the control icons
+        self.key_w.draw()
+        self.key_a.draw()
+        self.key_s.draw()
+        self.key_d.draw()
+        self.mouse_icon.draw()
+
+        # Label the mouse icon
+        arcade.draw_text(
+            "Mouse",
+            self.mouse_icon.center_x,
+            self.mouse_icon.center_y - 40,
+            arcade.color.WHITE,
+            font_size=14,
+            anchor_x="center",
+            font_name="Arial",
+        )
+
+        # Label the WASD keys
+        arcade.draw_text(
+            "W", self.key_w.center_x, self.key_w.center_y, arcade.color.WHITE, font_size=16, anchor_x="center"
+        )
+        arcade.draw_text(
+            "A", self.key_a.center_x, self.key_a.center_y, arcade.color.WHITE, font_size=16, anchor_x="center"
+        )
+        arcade.draw_text(
+            "S", self.key_s.center_x, self.key_s.center_y, arcade.color.WHITE, font_size=16, anchor_x="center"
+        )
+        arcade.draw_text(
+            "D", self.key_d.center_x, self.key_d.center_y, arcade.color.WHITE, font_size=16, anchor_x="center"
+        )
+
 
     def setup(self):
         # Set background colordddd
@@ -416,6 +506,8 @@ class TopDownShooter(arcade.View):
         self.health_pickup_list.draw()
         self.draw_hud()
         self.draw_enemy_arrows()
+        if self.wave_number == 1 and self.show_tutorial:
+            self.draw_tutorial_text()
 
     def draw_dark_overlay(self):
         """
@@ -745,6 +837,10 @@ class TopDownShooter(arcade.View):
         )
 
     def on_update(self, delta_time):
+        if self.wave_number == 1 and self.show_tutorial:
+            self.tutorial_timer += delta_time
+            if self.tutorial_timer > 11:  # Hide tutorial after 10 seconds
+                self.show_tutorial = False
         if self.player_dead:
             # Stop boss sound if player dies
             if self.audio_manager:
@@ -779,7 +875,7 @@ class TopDownShooter(arcade.View):
         dx = cam_x + self.window.width / 2 - WORLD_CENTER_X
         dy = cam_y + self.window.height / 2 - WORLD_CENTER_Y
         distance = math.hypot(dx, dy)
-        max_distance = WORLD_RADIUS * 1.2 - max(self.window.width, self.window.height) / 2
+        max_distance = WORLD_RADIUS * 1.5 - max(self.window.width, self.window.height) / 2
 
         if distance > max_distance:
             angle = math.atan2(dy, dx)

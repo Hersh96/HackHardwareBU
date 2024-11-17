@@ -1,3 +1,5 @@
+import os
+import sys
 import arcade
 import arcade.gui
 from audio import AudioManager  # Import AudioManager
@@ -12,7 +14,9 @@ SCREEN_TITLE = "Terrier Terror"
 
 FLASHLIGHT_SCALING = 0.03  # Scale the flashlight sprite by this constant
 
-
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    os.chdir(sys._MEIPASS)
+    
 class StartupView(arcade.View):
     def __init__(self):
         super().__init__()
