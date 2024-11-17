@@ -3,6 +3,7 @@ import random
 import math
 import arcade.gui
 import json
+from itertools import chain
 
 
 from constants import *
@@ -12,6 +13,7 @@ from bullet import Bullet
 from ammo_pickup import AmmoPickup
 from audio import AudioManager  # Import AudioManager
 from wall import Wall
+from boss import Boss
 
 class TopDownShooter(arcade.View):
     def __init__(self):
@@ -23,6 +25,8 @@ class TopDownShooter(arcade.View):
         self.bullet_list = arcade.SpriteList()
         self.ammo_pickup_list = arcade.SpriteList()
         self.wall_list = arcade.SpriteList()
+        self.boss_list = arcade.SpriteList()
+        self.health_pickup_list = arcade.SpriteList()
 
 
         # Initialize player
@@ -43,6 +47,9 @@ class TopDownShooter(arcade.View):
         self.death_timer = 0
         self.enemies_killed = 0
         self.enable_enemy_ray_casting = True
+        self.bosses_defeated = 0
+        self.high_score = 0
+        self.boss_active = False
 
     def setup(self):
         # Set background color
@@ -75,36 +82,59 @@ class TopDownShooter(arcade.View):
         self.window.set_mouse_visible(True)
 
     def spawn_enemies(self):
-        num_enemies = self.wave_number
-
-        for _ in range(num_enemies):
-            enemy_sprite = Enemy(
-                "Images/enemy.png",          # Standing texture
-                "Images/enemy.png",          # First walking frame (reused here)
-                "Images/enemy.png",          # Second walking frame (reused here)
-                ENEMY_SCALING,
-            )
-            enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
-
-            while True:
-                angle = random.uniform(0, 2 * math.pi)
-                r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
-                x = WORLD_CENTER_X + r * math.cos(angle)
-                y = WORLD_CENTER_Y + r * math.sin(angle)
-
-                distance_to_player = math.hypot(
-                    x - self.player_sprite.center_x, y - self.player_sprite.center_y
+        if self.wave_number % 5 == 0 and not self.boss_active:
+            # Spawn the boss
+            self.spawn_boss()
+            self.boss_active = True
+        else:
+            # Spawn regular enemies
+            num_enemies = self.wave_number
+            for _ in range(num_enemies):
+                enemy_sprite = Enemy(
+                    "../Images/enemy.png",          # Standing texture
+                    "../Images/enemy.png",          # First walking frame (reused)
+                    "../Images/enemy.png",          # Second walking frame (reused)
+                    ENEMY_SCALING,
                 )
-                if distance_to_player >= SAFE_SPAWN_DISTANCE:
-                    break
+                enemy_sprite.health = ENEMY_HEALTH + (self.wave_number - 1) * 10
 
-            enemy_sprite.center_x = x
-            enemy_sprite.center_y = y
-            self.enemy_list.append(enemy_sprite)
+                while True:
+                    angle = random.uniform(0, 2 * math.pi)
+                    r = WORLD_RADIUS * math.sqrt(random.uniform(0, 1))
+                    x = WORLD_CENTER_X + r * math.cos(angle)
+                    y = WORLD_CENTER_Y + r * math.sin(angle)
+
+                    distance_to_player = math.hypot(
+                        x - self.player_sprite.center_x, y - self.player_sprite.center_y
+                    )
+                    if distance_to_player >= SAFE_SPAWN_DISTANCE:
+                        break
+
+                enemy_sprite.center_x = x
+                enemy_sprite.center_y = y
+                self.enemy_list.append(enemy_sprite)
+    
+    def spawn_boss(self):
+        boss_sprite = Boss(
+            "../images/boss.png",  # Adjusted path to boss image
+            "../images/boss.png",  # Using the same image for all frames
+            "../images/boss.png",
+            BOSS_SCALING,
+        )
+        boss_sprite.health = BOSS_HEALTH
+        boss_sprite.center_x = WORLD_CENTER_X
+        boss_sprite.center_y = WORLD_CENTER_Y - 400  # Spawn boss below the player
+        self.boss_list.append(boss_sprite)
+        if self.audio_manager:
+            self.audio_manager.play_boss_sound()
 
     def spawn_ammo_pickup_at(self, x, y):
         ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
         self.ammo_pickup_list.append(ammo_pickup)
+    
+    def spawn_health_pickup_at(self, x, y):
+        health_pickup = AmmoPickup(5, arcade.color.GREEN, x, y)
+        self.health_pickup_list.append(health_pickup)
 
     def spawn_ammo_pickup(self):
         while True:
@@ -142,6 +172,16 @@ class TopDownShooter(arcade.View):
         #         ENEMY_SHOOT_RANGE,
         #         CONE_ANGLE,
         #         (255, 0, 0, 100)  # Red with transparency
+        #     )
+
+        # for boss in self.boss_list:
+        #     self.draw_cone(
+        #         boss.center_x,
+        #         boss.center_y,
+        #         boss.angle,
+        #         BOSS_SHOOT_RANGE,
+        #         CONE_ANGLE,
+        #         arcade.color.PURPLE,
         #     )
 
     
@@ -194,36 +234,60 @@ class TopDownShooter(arcade.View):
         dy = enemy.center_y - self.player_sprite.center_y
         distance = math.hypot(dx, dy)
 
-        # Normalize the direction vector
-        if distance != 0:
-            dx /= distance
-            dy /= distance
+        if distance == 0:
+            return  # Avoid division by zero
+        
+        dx /= distance
+        dy /= distance
 
         # Set the arrow length (e.g., 50 pixels)
         arrow_length = 50
 
-        # Calculate the arrow position starting from the player
-        start_x = self.player_sprite.center_x + dx * 100  # Offset from the player
-        start_y = self.player_sprite.center_y + dy * 100
+        screen_width, screen_height = self.window.get_size()
+        screen_center_x = self.camera.position[0] + screen_width / 2
+        screen_center_y = self.camera.position[1] + screen_height / 2
 
-        end_x = start_x + dx * arrow_length
-        end_y = start_y + dy * arrow_length
+        # Calculate the angle to the enemy
+        angle = math.atan2(dy, dx)
 
-        # Calculate the angle of the arrow
-        angle = math.degrees(math.atan2(dy, dx))
+        # Determine the edge point
+        edge_x, edge_y = self.get_point_on_screen_edge(
+            angle, screen_center_x, screen_center_y, screen_width, screen_height
+        )
 
-        # Draw the arrow
-        arcade.draw_line(start_x, start_y, end_x, end_y, arcade.color.GREEN, 4)
+        # Draw the arrow pointing towards the enemy
+        end_x = edge_x - dx * arrow_length
+        end_y = edge_y - dy * arrow_length
+
+        arcade.draw_line(edge_x, edge_y, end_x, end_y, arcade.color.GREEN, 4)
+
         # Draw the arrowhead
         size = 10
         arcade.draw_triangle_filled(
-            end_x, end_y,
-            end_x - size * math.cos(math.radians(angle + 135)),
-            end_y - size * math.sin(math.radians(angle + 135)),
-            end_x - size * math.cos(math.radians(angle - 135)),
-            end_y - size * math.sin(math.radians(angle - 135)),
-            arcade.color.GREEN
+            edge_x,
+            edge_y,
+            edge_x - size * math.cos(angle + math.pi / 6),
+            edge_y - size * math.sin(angle + math.pi / 6),
+            edge_x - size * math.cos(angle - math.pi / 6),
+            edge_y - size * math.sin(angle - math.pi / 6),
+            arcade.color.GREEN,
         )
+    
+    def get_point_on_screen_edge(self, angle, center_x, center_y, width, height):
+        tan_theta = math.tan(angle)
+        if angle >= -math.pi / 2 and angle <= math.pi / 2:
+            x = center_x + width / 2
+            y = center_y + (width / 2) * tan_theta
+            if y > center_y + height / 2:
+                y = center_y + height / 2
+                x = center_x + (height / 2) / tan_theta
+        else:
+            x = center_x - width / 2
+            y = center_y - (width / 2) * tan_theta
+            if y < center_y - height / 2:
+                y = center_y - height / 2
+                x = center_x - (height / 2) / tan_theta
+        return x, y
 
     def on_draw(self):
         arcade.start_render()
