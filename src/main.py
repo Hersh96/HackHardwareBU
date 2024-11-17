@@ -138,6 +138,8 @@ class TopDownShooter(arcade.View):
         boss_sprite.center_x = WORLD_CENTER_X
         boss_sprite.center_y = WORLD_CENTER_Y - 400  # Spawn boss below the player
         self.boss_list.append(boss_sprite)
+        if self.audio_manager:
+            self.audio_manager.play_boss_sound()
 
     def spawn_ammo_pickup_at(self, x, y):
         ammo_pickup = AmmoPickup(5, arcade.color.BLUE, x, y)
@@ -380,6 +382,8 @@ class TopDownShooter(arcade.View):
 
     def on_update(self, delta_time):
         if self.player_dead:
+            if self.audio_manager:
+                self.audio_manager.stop_boss_sound()
             # Increment death timer
             self.death_timer += delta_time
             if self.death_timer >= 3.0:
@@ -520,20 +524,35 @@ class TopDownShooter(arcade.View):
                                 self.audio_manager.play_player_kill_enemy_sound()
                         break  # Only one collision per bullet
 
+
                     elif isinstance(target, Boss):
+
                         target.health -= PLAYER_BULLET_DAMAGE
+
                         bullet.remove_from_sprite_lists()
+
                         if target.health <= 0:
+
                             self.bosses_defeated += 1
+
                             # Restore player's health to full
+
                             self.player_sprite.health = PLAYER_HEALTH
+
                             target.remove_from_sprite_lists()
+
                             if self.audio_manager:
                                 self.audio_manager.play_enemy_die_sound()
+
+                                self.audio_manager.stop_boss_sound()  # Stop boss sound
+
                         else:
+
                             # Play player hit enemy sound
+
                             if self.audio_manager:
                                 self.audio_manager.play_player_kill_enemy_sound()
+
                         break  # Only one collision per bullet
 
             elif bullet.owner == 'enemy':
